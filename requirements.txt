@@ -2,3 +2,4 @@ Django==6.0.2
 djangorestframework
 psycopg[binary]
 python-dotenv
+Pillow>=10.0.0
