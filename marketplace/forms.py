@@ -1,5 +1,5 @@
 from django import forms
-from .models import User
+from .models import User, Product # Added Product model to fix the ImportError
 
 # TC-001: Producer Registration Form
 class ProducerRegistrationForm(forms.ModelForm):
@@ -43,7 +43,6 @@ class ProducerRegistrationForm(forms.ModelForm):
         user.last_name = names[1] if len(names) > 1 else ''
         
         # 2. Create a database-friendly username (jane_smith) automatically
-        # This solves the "No spaces allowed" error!
         user.username = contact_name.replace(" ", "_").lower()
         
         if commit:
@@ -57,7 +56,6 @@ class CustomerRegistrationForm(forms.ModelForm):
 
     class Meta:
         model = User
-        # Customers usually have separate first/last name boxes, but let's keep it consistent
         fields = ['first_name', 'last_name', 'username', 'email', 'phone', 'address', 'password']
         
         labels = {
@@ -82,3 +80,20 @@ class CustomerRegistrationForm(forms.ModelForm):
 class LoginForm(forms.Form):
     username = forms.CharField(max_length=150, label="Username or Contact Name")
     password = forms.CharField(widget=forms.PasswordInput)
+
+# TC-014: Product Form (Hotfix for Ken's missing code)
+class ProductForm(forms.ModelForm):
+    """
+    Form for producers to add products. 
+    Matches the 'allergens' field defined in models.py.
+    """
+    class Meta:
+        model = Product
+        # Change 'allergen_info' to 'allergens' to match models.py
+        fields = ['name', 'description', 'price', 'allergens'] 
+        
+        widgets = {
+            'allergens': forms.TextInput(attrs={
+                'placeholder': 'e.g. Contains nuts, dairy, or gluten'
+            }),
+        }
