@@ -1,21 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Products</title>
+</head>
+<body>
+
 <h1>My Products</h1>
 
-<a href="{% url 'producer_add_product' %}">Add Product</a>
+<p>
+    <a href="{% url 'producer_add_product' %}">➕ Add Product</a>
+    |
+    <a href="{% url 'logout' %}">Logout</a>
+</p>
+
+<hr>
 
 {% if products %}
-  <ul>
-    {% for product in products %}
-      <li>
-        <strong>{{ product.name }}</strong> - £{{ product.price }} - Stock: {{ product.stock }}
-        <br>
-        {% if product.allergens %}
-          ⚠ Contains: {{ product.allergens }}
-        {% else %}
-          No allergens declared
-        {% endif %}
-      </li>
-    {% endfor %}
-  </ul>
+    <ul style="list-style: none; padding: 0;">
+        {% for product in products %}
+            <li style="margin-bottom: 20px; border: 1px solid #ccc; padding: 10px;">
+
+                <h3>{{ product.name }}</h3>
+
+                <p>
+                    <strong>Price:</strong> £{{ product.price }} <br>
+                    <strong>Stock:</strong> {{ product.stock }}
+                </p>
+
+                {% if product.description %}
+                    <p>{{ product.description }}</p>
+                {% endif %}
+
+                {% if product.allergens %}
+                    <p style="color: red;">
+                        ⚠ <strong>Contains:</strong> {{ product.allergens }}
+                    </p>
+                {% else %}
+                    <p style="color: green;">
+                        No allergens declared
+                    </p>
+                {% endif %}
+
+                <p>
+                    <a href="{% url 'producer_edit_product' product.id %}">✏ Edit</a>
+
+                    <form method="post"
+                          action="{% url 'producer_delete_product' product.id %}"
+                          style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit"
+                                onclick="return confirm('Are you sure you want to delete this product?');">
+                            🗑 Delete
+                        </button>
+                    </form>
+                </p>
+
+            </li>
+        {% endfor %}
+    </ul>
 {% else %}
-  <p>No products yet.</p>
+    <p>No products yet.</p>
 {% endif %}
+
+</body>
+</html>
