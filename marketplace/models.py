@@ -32,6 +32,9 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.IntegerField(default=0)
     image = models.ImageField(upload_to='products/', blank=True, null=True)
+    
+    # TC-015: Allergen warnings
+    allergens = models.CharField(max_length=255, blank=True, null=True)
 
 # Order and 5% Commission for TC-016
 class Order(models.Model):

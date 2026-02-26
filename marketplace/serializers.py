@@ -9,9 +9,15 @@ class UserSerializer(serializers.ModelSerializer):
 
 # Serializer for Product model
 class ProductSerializer(serializers.ModelSerializer):
+    allergen_warning = serializers.SerializerMethodField()
     class Meta:
         model = Product
         fields = '__all__'
+        
+    def get_allergen_warning(self, obj):
+        if obj.allergens:
+            return f"⚠ Contains: {obj.allergens}"
+        return "No allergens declared"
 
 # Serializer for Order model
 class OrderSerializer(serializers.ModelSerializer):
