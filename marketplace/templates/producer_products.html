@@ -1,0 +1,21 @@
+<h1>My Products</h1>
+
+<a href="{% url 'producer_add_product' %}">Add Product</a>
+
+{% if products %}
+  <ul>
+    {% for product in products %}
+      <li>
+        <strong>{{ product.name }}</strong> - £{{ product.price }} - Stock: {{ product.stock }}
+        <br>
+        {% if product.allergens %}
+          ⚠ Contains: {{ product.allergens }}
+        {% else %}
+          No allergens declared
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>No products yet.</p>
+{% endif %}

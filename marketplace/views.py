@@ -54,3 +54,36 @@ def logout_view(request):
     logout(request)
     messages.info(request, "You have been logged out.")
     return redirect('login')
+
+# TC-003 Producer Products
+
+@login_required
+def producer_products_view(request):
+    """TC-003: Producer product listing (only shows logged-in producer's products)."""
+    if not getattr(request.user, "is_producer", False):
+        messages.error(request, "Only producers can access this page.")
+        return redirect("login")
+
+    products = Product.objects.filter(producer=request.user).order_by("-id")
+    return render(request, "producer_products.html", {"products": products})
+
+
+@login_required
+def producer_add_product_view(request):
+    """TC-003: Producer adds a product (product is linked to logged-in producer)."""
+    if not getattr(request.user, "is_producer", False):
+        messages.error(request, "Only producers can add products.")
+        return redirect("login")
+
+    if request.method == "POST":
+        form = ProductForm(request.POST, request.FILES)
+        if form.is_valid():
+            product = form.save(commit=False)
+            product.producer = request.user
+            product.save()
+            messages.success(request, "Product added successfully.")
+            return redirect("producer_products")
+    else:
+        form = ProductForm()
+
+    return render(request, "producer_add_product.html", {"form": form})

@@ -13,4 +13,8 @@ urlpatterns = [
     
     # Logout System
     path('logout/', views.logout_view, name='logout'),
+    
+    # TC-003 Producer Product Management
+    path('producer/products/', views.producer_products_view, name='producer_products'),
+    path('producer/products/add/', views.producer_add_product_view, name='producer_add_product'),
 ]
