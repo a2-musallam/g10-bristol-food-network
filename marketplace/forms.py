@@ -1,5 +1,6 @@
 from django import forms
 from .models import User
+from .models import Product
 
 # TC-001: Producer Registration Form
 class ProducerRegistrationForm(forms.ModelForm):
@@ -82,3 +83,9 @@ class CustomerRegistrationForm(forms.ModelForm):
 class LoginForm(forms.Form):
     username = forms.CharField(max_length=150, label="Username or Contact Name")
     password = forms.CharField(widget=forms.PasswordInput)
+    
+# Product Form
+class ProductForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ["name", "description", "price", "stock", "image", "allergens"]

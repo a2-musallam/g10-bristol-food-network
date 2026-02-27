@@ -66,3 +66,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'marketplace.User'
+
+
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/producer/products/"
+LOGOUT_REDIRECT_URL = "/login/"

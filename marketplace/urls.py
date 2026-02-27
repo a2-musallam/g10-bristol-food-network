@@ -14,7 +14,9 @@ urlpatterns = [
     # Logout System
     path('logout/', views.logout_view, name='logout'),
     
-    # TC-003 Producer Product Management
-    path('producer/products/<int:pk>/edit/', views.producer_edit_product_view, name='producer_edit_product'),
-    path('producer/products/<int:pk>/delete/', views.producer_delete_product_view, name='producer_delete_product'),
+    # Producer Product Management (TC-003 + CRUD)
+    path("producer/products/", views.producer_products_view, name="producer_products"),
+    path("producer/products/add/", views.producer_add_product_view, name="producer_add_product"),
+    path("producer/products/<int:pk>/edit/", views.producer_edit_product_view, name="producer_edit_product"),
+    path("producer/products/<int:pk>/delete/", views.producer_delete_product_view, name="producer_delete_product"),
 ]
