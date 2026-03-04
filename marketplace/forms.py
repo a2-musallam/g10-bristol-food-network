@@ -88,4 +88,8 @@ class LoginForm(forms.Form):
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
+        # IMPORTANT: do NOT include "producer" here (we set it in the view)
         fields = ["name", "description", "price", "stock", "image", "allergens"]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 4}),
+        }

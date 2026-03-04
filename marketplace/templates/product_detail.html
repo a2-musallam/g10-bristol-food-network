@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ product.name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+        }
+
+        .product-container {
+            border: 1px solid #ddd;
+            padding: 25px;
+            border-radius: 8px;
+        }
+
+        .price {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .stock {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .in-stock {
+            color: green;
+        }
+
+        .out-of-stock {
+            color: red;
+        }
+
+        .allergen-box {
+            margin-top: 20px;
+            padding: 15px;
+            border: 2px solid #c00000;
+            background-color: #fff0f0;
+            border-radius: 6px;
+        }
+
+        .allergen-title {
+            font-weight: bold;
+            color: #c00000;
+        }
+
+        img {
+            max-width: 400px;
+            margin-top: 20px;
+            border-radius: 6px;
+        }
+
+        .back-link {
+            margin-top: 30px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="product-container">
+
+        <h1>{{ product.name }}</h1>
+
+        <p><strong>Produced by:</strong> {{ product.producer.business_name }}</p>
+
+        <p>{{ product.description }}</p>
+
+        <div class="price">
+            £{{ product.price }}
+        </div>
+
+        <div class="stock">
+            {% if product.stock > 0 %}
+                <span class="in-stock">In Stock ({{ product.stock }} available)</span>
+            {% else %}
+                <span class="out-of-stock">Out of Stock</span>
+            {% endif %}
+        </div>
+
+        {% if product.image %}
+            <img src="{{ product.image.url }}" alt="{{ product.name }}">
+        {% endif %}
+
+        <!-- TC-015 ALLERGEN DISPLAY -->
+        <div class="allergen-box">
+            <div class="allergen-title">
+                ⚠ Allergen Information
+            </div>
+
+            {% if product.allergens %}
+                <p>{{ product.allergens }}</p>
+            {% else %}
+                <p>No common allergens.</p>
+            {% endif %}
+        </div>
+
+        <a class="back-link" href="{% url 'marketplace' %}">
+            ← Back to Marketplace
+        </a>
+
+    </div>
+
+</body>
+</html>
