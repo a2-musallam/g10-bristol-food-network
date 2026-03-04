@@ -25,16 +25,44 @@ class User(AbstractUser):
 
 # Product model for TC-003 & TC-004
 class Product(models.Model):
-    # Linking the product to a specific Producer
-    producer = models.ForeignKey(User, on_delete=models.CASCADE, limit_choices_to={'is_producer': True})
+    CATEGORY_CHOICES = [
+        ("veg", "Vegetables"),
+        ("dairy_eggs", "Dairy & Eggs"),
+        ("bakery", "Bakery"),
+        ("preserves", "Preserves"),
+        ("seasonal", "Seasonal Specialties"),
+    ]
+
+    AVAILABILITY_CHOICES = [
+        ("in_season", "In Season (Available)"),
+        ("year_round", "Available Year-Round"),
+        ("unavailable", "Unavailable / Out of Season"),
+    ]
+
+    producer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        limit_choices_to={"is_producer": True},
+    )
+
     name = models.CharField(max_length=200)
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default="veg")
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    unit = models.CharField(max_length=50, default="Each")  # e.g. kg, litre, dozen
+    availability = models.CharField(max_length=20, choices=AVAILABILITY_CHOICES, default="in_season")
+
     stock = models.IntegerField(default=0)
-    image = models.ImageField(upload_to='products/', blank=True, null=True)
-    
-    # TC-015: Allergen warnings
+    harvest_date = models.DateField(blank=True, null=True)
+
+    image = models.ImageField(upload_to="products/", blank=True, null=True)
+
+    # TC-015
     allergens = models.CharField(max_length=255, blank=True, null=True)
+
+    def __str__(self):
+        return self.name
 
 # Order and 5% Commission for TC-016
 class Order(models.Model):

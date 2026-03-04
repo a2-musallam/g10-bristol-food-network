@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.contrib.auth import login, authenticate, logout # Added logout here
+from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 
@@ -8,14 +8,17 @@ from .forms import (
     ProducerRegistrationForm,
     CustomerRegistrationForm,
     LoginForm,
-    ProductForm,   #  Added for TC-003
+    ProductForm,
 )
 
-from .models import Product  #  Added for TC-003
+from .models import Product
 
+
+
+# REGISTRATION
 
 def register_producer_view(request):
-    """ TC-001: Producer Registration Logic. """
+    """ TC-001: Producer Registration """
     if request.method == 'POST':
         form = ProducerRegistrationForm(request.POST)
         if form.is_valid():
@@ -27,10 +30,12 @@ def register_producer_view(request):
             return redirect('login')
     else:
         form = ProducerRegistrationForm()
+
     return render(request, 'register_producer.html', {'form': form})
 
+
 def register_customer_view(request):
-    """ TC-002: Customer Registration Logic. """
+    """ TC-002: Customer Registration """
     if request.method == 'POST':
         form = CustomerRegistrationForm(request.POST)
         if form.is_valid():
@@ -42,35 +47,69 @@ def register_customer_view(request):
             return redirect('login')
     else:
         form = CustomerRegistrationForm()
+
     return render(request, 'register_customer.html', {'form': form})
 
+
+# AUTHENTICATION (TC-022)
+
+
 def login_view(request):
-    """ TC-022: Secure Login Logic. """
+    """ TC-022: Secure Login """
     if request.method == 'POST':
         form = LoginForm(request.POST)
         if form.is_valid():
             user = authenticate(
-                username=form.cleaned_data['username'], 
+                username=form.cleaned_data['username'],
                 password=form.cleaned_data['password']
             )
             if user:
                 login(request, user)
-                return redirect('admin:index') 
+
+                # Redirect based on role instead of admin
+                if getattr(user, "is_producer", False):
+                    return redirect("producer_products")
+                else:
+                    return redirect("marketplace")
+
             else:
                 messages.error(request, "Invalid username or password.")
-    return render(request, 'login.html', {'form': LoginForm()})
+    else:
+        form = LoginForm()
+
+    return render(request, 'login.html', {'form': form})
+
 
 def logout_view(request):
-    """ The missing function that was causing your error! """
     logout(request)
     messages.info(request, "You have been logged out.")
     return redirect('login')
 
-# TC-003 Producer Products
+
+# MARKETPLACE (Customer View)
+
+def marketplace_view(request):
+    # Only show products that are available AND in stock (recommended for TC-003)
+    products = Product.objects.filter(
+        availability__in=["in_season", "year_round"],
+        stock__gt=0
+    ).order_by("-id")
+
+    return render(request, "marketplace.html", {"products": products})
+
+
+def product_detail_view(request, pk):
+    """ TC-015: Product detail page with allergen display """
+    product = get_object_or_404(Product, pk=pk)
+    return render(request, "product_detail.html", {"product": product})
+
+
+
+# TC-003 PRODUCER PRODUCT LOGIC
 
 @login_required
 def producer_products_view(request):
-    """TC-003: Producer product listing (only shows logged-in producer's products)."""
+    """ Producer product dashboard """
     if not getattr(request.user, "is_producer", False):
         messages.error(request, "Only producers can access this page.")
         return redirect("login")
@@ -81,7 +120,7 @@ def producer_products_view(request):
 
 @login_required
 def producer_add_product_view(request):
-    """TC-003: Producer adds a product (product is linked to logged-in producer)."""
+    """ Producer adds product """
     if not getattr(request.user, "is_producer", False):
         messages.error(request, "Only producers can add products.")
         return redirect("login")
@@ -102,12 +141,11 @@ def producer_add_product_view(request):
 
 @login_required
 def producer_edit_product_view(request, pk):
-    """TC-003: Producer edits one of their own products."""
+    """ Producer edits own product """
     if not getattr(request.user, "is_producer", False):
         messages.error(request, "Only producers can edit products.")
         return redirect("login")
 
-    # Security: producer can only edit their own products
     product = get_object_or_404(Product, pk=pk, producer=request.user)
 
     if request.method == "POST":
@@ -125,12 +163,11 @@ def producer_edit_product_view(request, pk):
 @login_required
 @require_POST
 def producer_delete_product_view(request, pk):
-    """TC-003: Producer deletes one of their own products."""
+    """ Producer deletes own product """
     if not getattr(request.user, "is_producer", False):
         messages.error(request, "Only producers can delete products.")
         return redirect("login")
 
-    # Security: producer can only delete their own products
     product = get_object_or_404(Product, pk=pk, producer=request.user)
     product.delete()
     messages.success(request, "Product deleted successfully.")

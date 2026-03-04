@@ -14,7 +14,20 @@ urlpatterns = [
     # Logout System
     path('logout/', views.logout_view, name='logout'),
     
-    # TC-003 Producer Product Management
-    path('producer/products/<int:pk>/edit/', views.producer_edit_product_view, name='producer_edit_product'),
-    path('producer/products/<int:pk>/delete/', views.producer_delete_product_view, name='producer_delete_product'),
+    # Producer Product Management (TC-003 + CRUD)
+    # Public marketplace + product detail (TC-015)
+    path("", views.marketplace_view, name="marketplace"),
+    path("products/<int:pk>/", views.product_detail_view, name="product_detail"),
+
+    # Producer product management (TC-003)
+    path("producer/products/", views.producer_products_view, name="producer_products"),
+    path("producer/products/add/", views.producer_add_product_view, name="producer_add_product"),
+    path("producer/products/edit/<int:pk>/", views.producer_edit_product_view, name="producer_edit_product"),
+    path("producer/products/delete/<int:pk>/", views.producer_delete_product_view, name="producer_delete_product"),
+
+    # Auth routes (if you keep them in marketplace app)
+    path("login/", views.login_view, name="login"),
+    path("logout/", views.logout_view, name="logout"),
+    path("register/producer/", views.register_producer_view, name="register_producer"),
+    path("register/customer/", views.register_customer_view, name="register_customer"),
 ]
