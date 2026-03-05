@@ -1,4 +1,6 @@
 from django import forms
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from .models import User, Product
 
 
@@ -26,10 +28,21 @@ class ProducerRegistrationForm(forms.ModelForm):
             }),
         }
 
+    # 🔐 PASSWORD SECURITY (TC-022)
+    def clean_password(self):
+        password = self.cleaned_data.get("password")
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            raise forms.ValidationError(e.messages)
+        return password
+
     def clean(self):
         cleaned_data = super().clean()
+
         if cleaned_data.get("password") != cleaned_data.get("confirm_password"):
             raise forms.ValidationError("Passwords do not match!")
+
         return cleaned_data
 
     def save(self, commit=True):
@@ -44,8 +57,12 @@ class ProducerRegistrationForm(forms.ModelForm):
         # Create username automatically
         user.username = contact_name.replace(" ", "_").lower()
 
+        # 🔐 Password hashing
+        user.set_password(self.cleaned_data["password"])
+
         if commit:
             user.save()
+
         return user
 
 
@@ -70,24 +87,62 @@ class CustomerRegistrationForm(forms.ModelForm):
             }),
         }
 
+    # 🔐 PASSWORD SECURITY (TC-022)
+    def clean_password(self):
+        password = self.cleaned_data.get("password")
+
+        try:
+            validate_password(password)
+
+        except ValidationError as e:
+            raise forms.ValidationError(e.messages)
+
+        return password
+
     def clean(self):
         cleaned_data = super().clean()
+
         if cleaned_data.get("password") != cleaned_data.get("confirm_password"):
             raise forms.ValidationError("Passwords do not match!")
+
         return cleaned_data
 
+    def save(self, commit=True):
+        user = super().save(commit=False)
 
-# TC-022: Login Form
+        # 🔐 Password hashing
+        user.set_password(self.cleaned_data["password"])
+
+        if commit:
+            user.save()
+
+        return user
+
+
+# TC-022: Login Form (REMEMBER ME ADDED)
 class LoginForm(forms.Form):
-    username = forms.CharField(max_length=150, label="Username or Contact Name")
-    password = forms.CharField(widget=forms.PasswordInput)
+    username = forms.CharField(
+        max_length=150,
+        label="Username or Contact Name"
+    )
+
+    password = forms.CharField(
+        widget=forms.PasswordInput
+    )
+
+    # ✅ Remember Me for session persistence
+    remember_me = forms.BooleanField(
+        required=False,
+        label="Remember Me"
+    )
 
 
-# TC-003: Product Form (matches your UPDATED Product model)
+# TC-003: Product Form
 class ProductForm(forms.ModelForm):
+
     class Meta:
         model = Product
-        # IMPORTANT: producer is set in the view (product.producer = request.user)
+
         fields = [
             "name",
             "category",
@@ -100,7 +155,10 @@ class ProductForm(forms.ModelForm):
             "image",
             "allergens",
         ]
+
         widgets = {
             "description": forms.Textarea(attrs={"rows": 4}),
-            "allergens": forms.TextInput(attrs={"placeholder": "e.g. Contains: Milk, Eggs, Wheat (Gluten)"}),
+            "allergens": forms.TextInput(attrs={
+                "placeholder": "e.g. Contains: Milk, Eggs, Wheat (Gluten)"
+            }),
         }
