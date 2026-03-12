@@ -7,22 +7,38 @@
     .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 12px; }
     .allergen { margin-top: 8px; padding: 8px; border: 1px solid #c00000; background: #fff0f0; border-radius: 6px; }
     a { text-decoration: none; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
   </style>
 </head>
 <body>
 
-  <h1>Marketplace</h1>
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <h1>Marketplace</h1>
+    <a href="{% url 'cart' %}">🛒 View Cart</a>
+  </div>
 
   {% if products %}
     {% for p in products %}
       <div class="card">
+
         <h2>
-          <a href="{% url 'product_detail' p.pk %}">{{ p.name }}</a>
+          <a href="{% url 'product_detail' p.pk %}">
+            {{ p.name }}
+          </a>
         </h2>
 
         <p><strong>Price:</strong> £{{ p.price }}</p>
         <p><strong>Stock:</strong> {{ p.stock }}</p>
 
+        <!-- TC-006 Add to Cart -->
+        <p>
+          <a href="{% url 'add_to_cart' p.id %}">
+            🛒 Add to Cart
+          </a>
+        </p>
+
+        <!-- Allergens -->
         <div class="allergen">
           <strong>Allergens:</strong>
           {% if p.allergens %}
@@ -31,6 +47,7 @@
             No common allergens
           {% endif %}
         </div>
+
       </div>
     {% endfor %}
   {% else %}

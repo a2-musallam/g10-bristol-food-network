@@ -12,23 +12,27 @@ from .forms import (
     ProductForm,
 )
 
-from .models import Product
+from .models import Product, CartItem
 
 
-
+# =========================
 # REGISTRATION
+# =========================
 
 def register_producer_view(request):
-    """ TC-001: Producer Registration """
+
     if request.method == 'POST':
         form = ProducerRegistrationForm(request.POST)
+
         if form.is_valid():
             user = form.save(commit=False)
             user.is_producer = True
             user.set_password(form.cleaned_data['password'])
             user.save()
+
             messages.success(request, f"Welcome {user.business_name}! Account created.")
             return redirect('login')
+
     else:
         form = ProducerRegistrationForm()
 
@@ -36,39 +40,46 @@ def register_producer_view(request):
 
 
 def register_customer_view(request):
-    """ TC-002: Customer Registration """
+
     if request.method == 'POST':
         form = CustomerRegistrationForm(request.POST)
+
         if form.is_valid():
             user = form.save(commit=False)
             user.is_customer = True
             user.set_password(form.cleaned_data['password'])
             user.save()
+
             messages.success(request, "Customer account created successfully!")
             return redirect('login')
+
     else:
         form = CustomerRegistrationForm()
 
     return render(request, 'register_customer.html', {'form': form})
 
 
-# AUTHENTICATION (TC-022)
+# =========================
+# AUTHENTICATION
+# =========================
 
 def login_view(request):
-    """ TC-022: Secure Login """
+
     if request.method == 'POST':
+
         form = LoginForm(request.POST)
 
         if form.is_valid():
+
             user = authenticate(
                 username=form.cleaned_data['username'],
                 password=form.cleaned_data['password']
             )
 
             if user:
+
                 login(request, user)
 
-                # 🔐 Remember Me functionality
                 if not form.cleaned_data.get("remember_me"):
                     request.session.set_expiry(0)
 
@@ -87,14 +98,20 @@ def login_view(request):
 
 
 def logout_view(request):
+
     logout(request)
+
     messages.info(request, "You have been logged out.")
+
     return redirect('login')
 
 
-# MARKETPLACE (Customer View)
+# =========================
+# MARKETPLACE
+# =========================
 
 def marketplace_view(request):
+
     products = Product.objects.filter(
         availability__in=["in_season", "year_round"],
         stock__gt=0
@@ -104,11 +121,89 @@ def marketplace_view(request):
 
 
 def product_detail_view(request, pk):
+
     product = get_object_or_404(Product, pk=pk)
+
     return render(request, "product_detail.html", {"product": product})
 
 
-# PRODUCER PRODUCT LOGIC (ROLE + OWNERSHIP PROTECTION)
+# =========================
+# TC-006 SHOPPING CART
+# =========================
+
+@login_required
+def add_to_cart(request, product_id):
+
+    product = get_object_or_404(Product, id=product_id)
+
+    cart_item, created = CartItem.objects.get_or_create(
+        customer=request.user,
+        product=product
+    )
+
+    if not created:
+        cart_item.quantity += 1
+        cart_item.save()
+
+    messages.success(request, "Product added to cart")
+
+    return redirect("marketplace")
+
+
+@login_required
+def cart_view(request):
+
+    items = CartItem.objects.filter(customer=request.user)
+
+    total = sum(item.subtotal() for item in items)
+
+    return render(request, "cart.html", {
+        "items": items,
+        "total": total
+    })
+
+
+# ⭐ NEW: UPDATE CART ITEM
+@login_required
+def update_cart_item(request, item_id):
+
+    cart_item = get_object_or_404(
+        CartItem,
+        id=item_id,
+        customer=request.user
+    )
+
+    if request.method == "POST":
+
+        quantity = int(request.POST.get("quantity"))
+
+        if quantity > 0:
+            cart_item.quantity = quantity
+            cart_item.save()
+
+    return redirect("cart")
+
+
+# ⭐ NEW: REMOVE CART ITEM
+@login_required
+def remove_cart_item(request, item_id):
+
+    cart_item = get_object_or_404(
+        CartItem,
+        id=item_id,
+        customer=request.user
+    )
+
+    cart_item.delete()
+
+    messages.success(request, "Item removed from cart")
+
+    return redirect("cart")
+
+
+# =========================
+# PRODUCER PRODUCT LOGIC
+# =========================
 
 @login_required
 def producer_products_view(request):
@@ -128,14 +223,17 @@ def producer_add_product_view(request):
         return HttpResponseForbidden("Access denied. Only producers can add products.")
 
     if request.method == "POST":
+
         form = ProductForm(request.POST, request.FILES)
 
         if form.is_valid():
+
             product = form.save(commit=False)
             product.producer = request.user
             product.save()
 
             messages.success(request, "Product added successfully.")
+
             return redirect("producer_products")
 
     else:
@@ -152,22 +250,28 @@ def producer_edit_product_view(request, pk):
 
     product = get_object_or_404(Product, pk=pk)
 
-    # 🔒 ownership check
     if product.producer != request.user:
         return HttpResponseForbidden("Access denied. You cannot edit another producer's product.")
 
     if request.method == "POST":
+
         form = ProductForm(request.POST, request.FILES, instance=product)
 
         if form.is_valid():
+
             form.save()
+
             messages.success(request, "Product updated successfully.")
+
             return redirect("producer_products")
 
     else:
         form = ProductForm(instance=product)
 
-    return render(request, "producer_edit_product.html", {"form": form, "product": product})
+    return render(request, "producer_edit_product.html", {
+        "form": form,
+        "product": product
+    })
 
 
 @login_required
@@ -179,11 +283,11 @@ def producer_delete_product_view(request, pk):
 
     product = get_object_or_404(Product, pk=pk)
 
-    # 🔒 ownership check
     if product.producer != request.user:
         return HttpResponseForbidden("Access denied. You cannot delete another producer's product.")
 
     product.delete()
 
     messages.success(request, "Product deleted successfully.")
+
     return redirect("producer_products")
