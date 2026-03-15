@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Checkout</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+        }
+
+        .box {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 6px;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px 16px;
+            cursor: pointer;
+        }
+
+        .summary p {
+            margin: 8px 0;
+        }
+
+        .note {
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Checkout</h1>
+
+    <div class="box">
+        <h2>Order Summary</h2>
+
+        <p><strong>Producer:</strong> {{ producer.business_name|default:producer.username }}</p>
+
+        {% for item in items %}
+            <p>
+                {{ item.product.name }} —
+                £{{ item.product.price }} x {{ item.quantity }}
+                = £{{ item.subtotal }}
+            </p>
+        {% endfor %}
+
+        <div class="summary">
+            <p><strong>Total:</strong> £{{ total_amount }}</p>
+        </div>
+    </div>
+
+    <div class="box">
+        <h2>Delivery Details</h2>
+
+        <form method="POST">
+            {% csrf_token %}
+
+            <label for="delivery_address">Delivery Address:</label>
+            <textarea name="delivery_address" id="delivery_address" rows="4" required>{{ request.user.address }}</textarea>
+
+            <p>• Delivery date must be at least 48 hours from now.</p>
+
+            <label for="delivery_date">Delivery Date and Time:</label>
+            <input type="datetime-local" name="delivery_date" id="delivery_date" required>
+
+            <h2>Payment Details</h2>
+
+            <label for="payment_method">Payment Method:</label>
+            <select name="payment_method" id="payment_method" required>
+                <option value="">-- Select Payment Method --</option>
+                <option value="card">Credit / Debit Card</option>
+            </select>
+
+            <label for="card_name">Cardholder Name:</label>
+            <input type="text" name="card_name" id="card_name" placeholder="Test User" required>
+
+            <label for="card_number">Card Number:</label>
+            <input type="text" name="card_number" id="card_number" placeholder="4242424242424242" required>
+
+            <label for="expiry_date">Expiry Date:</label>
+            <input type="text" name="expiry_date" id="expiry_date" placeholder="12/34" required>
+
+            <label for="cvv">CVV:</label>
+            <input type="text" name="cvv" id="cvv" placeholder="123" required>
+
+            <div class="note">
+                <strong>Test Mode:</strong> Use sandbox payment details only.<br>
+                Example card number: <strong>4242424242424242</strong><br>
+                Expiry date: <strong>12/34</strong><br>
+                CVV: <strong>123</strong>
+            </div>
+
+            <button type="submit">Confirm Order</button>
+        </form>
+    </div>
+
+    <p><a href="{% url 'cart' %}">← Back to Cart</a></p>
+
+</body>
+</html>

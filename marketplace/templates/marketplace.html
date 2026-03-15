@@ -3,20 +3,114 @@
 <head>
   <title>Marketplace</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; }
-    .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 12px; }
-    .allergen { margin-top: 8px; padding: 8px; border: 1px solid #c00000; background: #fff0f0; border-radius: 6px; }
-    a { text-decoration: none; }
-    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1000px;
+      margin: 40px auto;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .topbar-left h1 {
+      margin: 0;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 14px;
+    }
+
+    .user-box {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #f8f8f8;
+    }
+
+    .card {
+      border: 1px solid #ddd;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+
+    .allergen {
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid #c00000;
+      background: #fff0f0;
+      border-radius: 6px;
+    }
+
+    a {
+      text-decoration: none;
+      color: #222;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .msg {
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      background: #eef6ee;
+      border: 1px solid #b7d7b7;
+    }
   </style>
 </head>
 <body>
 
   <!-- TOP BAR -->
   <div class="topbar">
-    <h1>Marketplace</h1>
-    <a href="{% url 'cart' %}">🛒 View Cart</a>
+    <div class="topbar-left">
+      <h1>Marketplace</h1>
+    </div>
+
+    <div class="topbar-right">
+      {% if user.is_authenticated %}
+
+        <div class="user-box">
+          <strong>Hello, {{ user.username }}</strong>
+
+        </div>
+
+        {% if user.is_customer %}
+          <a href="{% url 'cart' %}">🛒 Cart</a>
+        {% endif %}
+
+        {% if user.is_producer %}
+          <a href="{% url 'producer_products' %}">My Products</a>
+          <a href="{% url 'producer_add_product' %}">Add Product</a>
+        {% endif %}
+
+        <a href="{% url 'logout' %}">Logout</a>
+
+      {% else %}
+
+        <a href="{% url 'login' %}">Login</a>
+        <a href="{% url 'register_customer' %}">Register as Customer</a>
+        <a href="{% url 'register_producer' %}">Register as Producer</a>
+
+      {% endif %}
+    </div>
   </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="msg">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
 
   {% if products %}
     {% for p in products %}
@@ -28,17 +122,21 @@
           </a>
         </h2>
 
-        <p><strong>Price:</strong> £{{ p.price }}</p>
+        <p><strong>Price:</strong> £{{ p.price }} / {{ p.unit }}</p>
         <p><strong>Stock:</strong> {{ p.stock }}</p>
 
-        <!-- TC-006 Add to Cart -->
-        <p>
-          <a href="{% url 'add_to_cart' p.id %}">
-            🛒 Add to Cart
-          </a>
-        </p>
+        {% if user.is_authenticated and user.is_customer %}
+          <p>
+            <a href="{% url 'add_to_cart' p.id %}">
+              🛒 Add to Cart
+            </a>
+          </p>
+        {% elif not user.is_authenticated %}
+          <p>
+            <a href="{% url 'login' %}">Login to purchase</a>
+          </p>
+        {% endif %}
 
-        <!-- Allergens -->
         <div class="allergen">
           <strong>Allergens:</strong>
           {% if p.allergens %}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Order Success</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+        }
+
+        .box {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="box">
+        <h1>Order Confirmed</h1>
+
+        <p><strong>Order Number:</strong> #{{ order.id }}</p>
+        <p><strong>Status:</strong> {{ order.status }}</p>
+        <p><strong>Customer:</strong> {{ order.customer.username }}</p>
+        <p><strong>Producer:</strong> {{ order.producer.business_name|default:order.producer.username }}</p>
+        <p><strong>Delivery Address:</strong> {{ order.delivery_address }}</p>
+        <p><strong>Delivery Date:</strong> {{ order.delivery_date }}</p>
+        <p><strong>Total:</strong> £{{ order.total_amount }}</p>
+
+        <br>
+        <a href="{% url 'marketplace' %}">← Back to Marketplace</a>
+    </div>
+
+</body>
+</html>

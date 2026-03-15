@@ -1,11 +1,11 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from decimal import Decimal
 
 
 # Custom User for Bristol Food Network roles
 class User(AbstractUser):
 
-    # Role fields
     is_producer = models.BooleanField(default=False)
     is_customer = models.BooleanField(default=False)
     is_restaurant = models.BooleanField(default=False)
@@ -13,14 +13,12 @@ class User(AbstractUser):
 
     phone = models.CharField(max_length=15, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
-
     business_name = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
         return self.username
 
 
-# Product model
 class Product(models.Model):
 
     CATEGORY_CHOICES = [
@@ -46,7 +44,6 @@ class Product(models.Model):
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default="veg")
     description = models.TextField(blank=True)
-
     price = models.DecimalField(max_digits=10, decimal_places=2)
     unit = models.CharField(max_length=50, default="Each")
 
@@ -58,41 +55,81 @@ class Product(models.Model):
 
     stock = models.IntegerField(default=0)
     harvest_date = models.DateField(blank=True, null=True)
-
     image = models.ImageField(upload_to="products/", blank=True, null=True)
-
     allergens = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
         return self.name
 
 
-# Order model
 class Order(models.Model):
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("confirmed", "Confirmed"),
+        ("completed", "Completed"),
+        ("cancelled", "Cancelled"),
+    ]
 
     customer = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
+        related_name="customer_orders",
         limit_choices_to={"is_customer": True}
     )
 
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    producer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="producer_orders",
+        limit_choices_to={"is_producer": True},
+        blank=True,
+        null=True
+    )
+
+    delivery_address = models.TextField(blank=True, null=True)
+    delivery_date = models.DateTimeField(blank=True, null=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending"
+    )
+
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    commission_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    producer_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
-    @property
-    def network_commission(self):
-        return float(self.total_amount) * 0.05
+    def calculate_commission(self):
+        return (self.subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
+
+    def calculate_producer_amount(self):
+        return (self.subtotal * Decimal("0.95")).quantize(Decimal("0.01"))
 
     def __str__(self):
         return f"Order #{self.id} - {self.customer.username}"
 
 
-# TC-006 Shopping Cart
+class OrderItem(models.Model):
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"Order #{self.order.id} - {self.product.name} x {self.quantity}"
+
+
 class CartItem(models.Model):
 
     customer = models.ForeignKey(User, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-
     quantity = models.IntegerField(default=1)
 
     def subtotal(self):

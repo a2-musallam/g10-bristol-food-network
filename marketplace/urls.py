@@ -7,35 +7,25 @@ urlpatterns = [
     path("", views.marketplace_view, name="marketplace"),
     path("products/<int:pk>/", views.product_detail_view, name="product_detail"),
 
-    # =========================
     # Shopping Cart (TC-006)
-    # =========================
-
     path("cart/", views.cart_view, name="cart"),
     path("cart/add/<int:product_id>/", views.add_to_cart, name="add_to_cart"),
-
-    # ⭐ NEW
     path("cart/update/<int:item_id>/", views.update_cart_item, name="update_cart"),
     path("cart/remove/<int:item_id>/", views.remove_cart_item, name="remove_cart"),
 
-    # =========================
-    # Authentication
-    # =========================
+    # Checkout (TC-007)
+    path("checkout/", views.checkout_view, name="checkout"),
+    path("order-success/<int:order_id>/", views.order_success_view, name="order_success"),
 
+    # Authentication
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
 
-    # =========================
     # Registration
-    # =========================
-
     path("register/producer/", views.register_producer_view, name="register_producer"),
     path("register/customer/", views.register_customer_view, name="register_customer"),
 
-    # =========================
     # Producer product management (TC-003)
-    # =========================
-
     path("producer/products/", views.producer_products_view, name="producer_products"),
     path("producer/products/add/", views.producer_add_product_view, name="producer_add_product"),
     path("producer/products/edit/<int:pk>/", views.producer_edit_product_view, name="producer_edit_product"),
