@@ -15,8 +15,8 @@ urlpatterns = [
 
     # Checkout (TC-007)
     path("checkout/", views.checkout_view, name="checkout"),
-    path("order-success/<int:order_id>/", views.order_success_view, name="order_success"),
-
+    path("order-success/", views.order_success_view, name="order_success"),
+    path("orders/", views.orders_view, name="orders"),
     # Authentication
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),

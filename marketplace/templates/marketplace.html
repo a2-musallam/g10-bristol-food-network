@@ -77,33 +77,33 @@
       <h1>Marketplace</h1>
     </div>
 
-    <div class="topbar-right">
-      {% if user.is_authenticated %}
+  <div class="topbar-right">
+  {% if user.is_authenticated %}
 
-        <div class="user-box">
-          <strong>Hello, {{ user.username }}</strong>
-
-        </div>
-
-        {% if user.is_customer %}
-          <a href="{% url 'cart' %}">🛒 Cart</a>
-        {% endif %}
-
-        {% if user.is_producer %}
-          <a href="{% url 'producer_products' %}">My Products</a>
-          <a href="{% url 'producer_add_product' %}">Add Product</a>
-        {% endif %}
-
-        <a href="{% url 'logout' %}">Logout</a>
-
-      {% else %}
-
-        <a href="{% url 'login' %}">Login</a>
-        <a href="{% url 'register_customer' %}">Register as Customer</a>
-        <a href="{% url 'register_producer' %}">Register as Producer</a>
-
-      {% endif %}
+    <div class="user-box">
+      <strong>Hello, {{ user.username }}</strong>
     </div>
+
+    {% if user.is_customer %}
+      <a href="{% url 'cart' %}">🛒 Cart</a>
+      <a href="{% url 'orders' %}">📦 My Orders</a>
+    {% endif %}
+
+    {% if user.is_producer %}
+      <a href="{% url 'producer_products' %}">My Products</a>
+      <a href="{% url 'producer_add_product' %}">Add Product</a>
+    {% endif %}
+
+    <a href="{% url 'logout' %}">Logout</a>
+
+  {% else %}
+
+    <a href="{% url 'login' %}">Login</a>
+    <a href="{% url 'register_customer' %}">Register as Customer</a>
+    <a href="{% url 'register_producer' %}">Register as Producer</a>
+
+  {% endif %}
+</div>
   </div>
 
   {% if messages %}

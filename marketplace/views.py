@@ -12,7 +12,6 @@ from .forms import (
     CustomerRegistrationForm,
     LoginForm,
     ProductForm,
-    CheckoutForm,
 )
 
 from .models import Product, CartItem, Order, OrderItem
@@ -25,12 +24,10 @@ from .models import Product, CartItem, Order, OrderItem
 def register_producer_view(request):
     if request.method == 'POST':
         form = ProducerRegistrationForm(request.POST)
-
         if form.is_valid():
             user = form.save(commit=False)
             user.is_producer = True
             user.save()
-
             messages.success(request, f"Welcome {user.business_name}! Account created.")
             return redirect('login')
     else:
@@ -42,12 +39,10 @@ def register_producer_view(request):
 def register_customer_view(request):
     if request.method == 'POST':
         form = CustomerRegistrationForm(request.POST)
-
         if form.is_valid():
             user = form.save(commit=False)
             user.is_customer = True
             user.save()
-
             messages.success(request, "Customer account created successfully!")
             return redirect('login')
     else:
@@ -57,7 +52,7 @@ def register_customer_view(request):
 
 
 # =========================
-# AUTHENTICATION
+# AUTH
 # =========================
 
 def login_view(request):
@@ -113,7 +108,7 @@ def product_detail_view(request, pk):
 
 
 # =========================
-# TC-006 SHOPPING CART
+# CART
 # =========================
 
 @login_required
@@ -131,7 +126,7 @@ def add_to_cart(request, product_id):
 
     if not created:
         if cart_item.quantity + 1 > product.stock:
-            messages.error(request, f"Cannot add more than available stock for {product.name}.")
+            messages.error(request, "Cannot add more than stock.")
             return redirect("marketplace")
 
         cart_item.quantity += 1
@@ -146,111 +141,121 @@ def cart_view(request):
     items = CartItem.objects.filter(customer=request.user)
     total = sum(item.subtotal() for item in items)
 
-    producer = None
-    if items.exists():
-        producer = items.first().product.producer
-
     return render(request, "cart.html", {
         "items": items,
         "total": total,
-        "producer": producer,
     })
 
 
 @login_required
 def update_cart_item(request, item_id):
-    cart_item = get_object_or_404(
-        CartItem,
-        id=item_id,
-        customer=request.user
-    )
+    cart_item = get_object_or_404(CartItem, id=item_id, customer=request.user)
 
     if request.method == "POST":
-        quantity = request.POST.get("quantity")
+        quantity = int(request.POST.get("quantity"))
 
-        if quantity:
-            quantity = int(quantity)
+        if quantity > cart_item.product.stock:
+            messages.error(request, "Not enough stock.")
+            return redirect("cart")
 
-            if quantity > cart_item.product.stock:
-                messages.error(
-                    request,
-                    f"Only {cart_item.product.stock} item(s) available for {cart_item.product.name}."
-                )
-                return redirect("cart")
-
-            if quantity > 0:
-                cart_item.quantity = quantity
-                cart_item.save()
-                messages.success(request, "Cart updated successfully.")
-            else:
-                cart_item.delete()
-                messages.info(request, "Item removed from cart.")
+        if quantity > 0:
+            cart_item.quantity = quantity
+            cart_item.save()
+        else:
+            cart_item.delete()
 
     return redirect("cart")
 
 
 @login_required
 def remove_cart_item(request, item_id):
-    cart_item = get_object_or_404(
-        CartItem,
-        id=item_id,
-        customer=request.user
-    )
-
+    cart_item = get_object_or_404(CartItem, id=item_id, customer=request.user)
     cart_item.delete()
-    messages.success(request, "Item removed from cart")
     return redirect("cart")
 
 
 # =========================
-# TC-007 CHECKOUT
+# CHECKOUT (TC009 FINAL)
 # =========================
 
 @login_required
 def checkout_view(request):
-    items = CartItem.objects.filter(customer=request.user)
+    items = CartItem.objects.filter(
+        customer=request.user
+    ).select_related("product", "product__producer")
 
     if not items.exists():
         messages.error(request, "Your cart is empty.")
         return redirect("cart")
 
-    producers = set(item.product.producer for item in items)
+    # GROUP
+    producer_map = {}
+    for item in items:
+        producer_map.setdefault(item.product.producer, []).append(item)
 
-    if len(producers) > 1:
-        messages.error(request, "You can only place an order from a single producer.")
-        return redirect("cart")
+    grouped_items = []
+    for producer, producer_items in producer_map.items():
+        subtotal = sum(item.subtotal() for item in producer_items)
+        commission = (subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
+        payout = (subtotal * Decimal("0.95")).quantize(Decimal("0.01"))
 
-    producer = items.first().product.producer
-    subtotal = sum(item.subtotal() for item in items)
-    commission_amount = (subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
-    producer_amount = (subtotal * Decimal("0.95")).quantize(Decimal("0.01"))
-    total_amount = subtotal
+        grouped_items.append({
+            "producer": producer,
+            "items": producer_items,
+            "subtotal": subtotal,
+            "commission": commission,
+            "payout": payout,
+        })
 
+    total_amount = sum(g["subtotal"] for g in grouped_items)
+
+    # POST
     if request.method == "POST":
-        form = CheckoutForm(request.POST)
 
-        if form.is_valid():
-            for item in items:
+        items = CartItem.objects.filter(
+            customer=request.user
+        ).select_related("product", "product__producer")
+
+        producer_map = {}
+        for item in items:
+            producer_map.setdefault(item.product.producer, []).append(item)
+
+        created_orders = []
+
+        for producer, producer_items in producer_map.items():
+
+            # ✅ HER PRODUCER İÇİN AYRI INPUT
+            delivery_address = request.POST.get(f"address_{producer.id}")
+            delivery_date = request.POST.get(f"date_{producer.id}")
+
+            if not delivery_address or not delivery_date:
+                messages.error(request, f"Missing delivery info for {producer.username}")
+                return redirect("checkout")
+
+            subtotal = sum(item.subtotal() for item in producer_items)
+            commission = (subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
+            payout = (subtotal * Decimal("0.95")).quantize(Decimal("0.01"))
+
+            for item in producer_items:
                 if item.quantity > item.product.stock:
-                    messages.error(
-                        request,
-                        f"Not enough stock for {item.product.name}. Available stock: {item.product.stock}."
-                    )
+                    messages.error(request, f"Not enough stock for {item.product.name}")
                     return redirect("cart")
 
             order = Order.objects.create(
                 customer=request.user,
                 producer=producer,
-                delivery_address=form.cleaned_data["delivery_address"],
-                delivery_date=form.cleaned_data["delivery_date"],
+                delivery_address=delivery_address,
+                delivery_date=delivery_date,
                 status="pending",
                 subtotal=subtotal,
-                commission_amount=commission_amount,
-                producer_amount=producer_amount,
-                total_amount=total_amount,
+                commission_amount=commission,
+                producer_amount=payout,
+                total_amount=subtotal,
             )
 
-            for item in items:
+            created_orders.append(order)
+
+            for item in producer_items:
                 OrderItem.objects.create(
                     order=order,
                     product=item.product,
@@ -259,67 +264,77 @@ def checkout_view(request):
                     subtotal=item.subtotal(),
                 )
 
-                product = item.product
-                product.stock -= item.quantity
-                product.save()
+                item.product.stock -= item.quantity
+                item.product.save()
 
-            items.delete()
+        items.delete()
 
-            messages.success(request, f"Order #{order.id} created successfully.")
-            return redirect("order_success", order_id=order.id)
-    else:
-        initial_data = {
-            "delivery_address": request.user.address or "",
-        }
-        form = CheckoutForm(initial=initial_data)
+        # ✅ MULTI ORDER SUCCESS
+        request.session["latest_order_ids"] = [o.id for o in created_orders]
+
+        messages.success(request, f"{len(created_orders)} orders created successfully!")
+
+        return redirect("order_success")
 
     return render(request, "checkout.html", {
-        "form": form,
-        "items": items,
-        "producer": producer,
-        "subtotal": subtotal,
-        "commission_amount": commission_amount,
-        "producer_amount": producer_amount,
+        "grouped_items": grouped_items,
         "total_amount": total_amount,
     })
 
 
+# =========================
+# ORDER SUCCESS (MULTI)
+# =========================
+
 @login_required
-def order_success_view(request, order_id):
-    order = get_object_or_404(Order, id=order_id, customer=request.user)
+def order_success_view(request):
+
+    order_ids = request.session.get("latest_order_ids", [])
+
+    orders = Order.objects.filter(
+        customer=request.user,
+        id__in=order_ids
+    ).order_by("-id")
 
     return render(request, "order_success.html", {
-        "order": order
+        "orders": orders
     })
 
 
 # =========================
-# PRODUCER PRODUCT LOGIC
+# ORDERS PAGE
+# =========================
+
+@login_required
+def orders_view(request):
+    orders = Order.objects.filter(customer=request.user).order_by("-id")
+    return render(request, "orders.html", {"orders": orders})
+
+
+# =========================
+# PRODUCER
 # =========================
 
 @login_required
 def producer_products_view(request):
     if not request.user.is_producer:
-        return HttpResponseForbidden("Access denied. Only producers can access this page.")
+        return HttpResponseForbidden()
 
-    products = Product.objects.filter(producer=request.user).order_by("-id")
+    products = Product.objects.filter(producer=request.user)
     return render(request, "producer_products.html", {"products": products})
 
 
 @login_required
 def producer_add_product_view(request):
     if not request.user.is_producer:
-        return HttpResponseForbidden("Access denied. Only producers can add products.")
+        return HttpResponseForbidden()
 
     if request.method == "POST":
         form = ProductForm(request.POST, request.FILES)
-
         if form.is_valid():
             product = form.save(commit=False)
             product.producer = request.user
             product.save()
-
-            messages.success(request, "Product added successfully.")
             return redirect("producer_products")
     else:
         form = ProductForm()
@@ -330,40 +345,34 @@ def producer_add_product_view(request):
 @login_required
 def producer_edit_product_view(request, pk):
     if not request.user.is_producer:
-        return HttpResponseForbidden("Access denied. Only producers can edit products.")
+        return HttpResponseForbidden()
 
     product = get_object_or_404(Product, pk=pk)
 
     if product.producer != request.user:
-        return HttpResponseForbidden("Access denied. You cannot edit another producer's product.")
+        return HttpResponseForbidden()
 
     if request.method == "POST":
         form = ProductForm(request.POST, request.FILES, instance=product)
-
         if form.is_valid():
             form.save()
-            messages.success(request, "Product updated successfully.")
             return redirect("producer_products")
     else:
         form = ProductForm(instance=product)
 
-    return render(request, "producer_edit_product.html", {
-        "form": form,
-        "product": product
-    })
+    return render(request, "producer_edit_product.html", {"form": form})
 
 
 @login_required
 @require_POST
 def producer_delete_product_view(request, pk):
     if not request.user.is_producer:
-        return HttpResponseForbidden("Access denied. Only producers can delete products.")
+        return HttpResponseForbidden()
 
     product = get_object_or_404(Product, pk=pk)
 
     if product.producer != request.user:
-        return HttpResponseForbidden("Access denied. You cannot delete another producer's product.")
+        return HttpResponseForbidden()
 
     product.delete()
-    messages.success(request, "Product deleted successfully.")
     return redirect("producer_products")
