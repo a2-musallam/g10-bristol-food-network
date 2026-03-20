@@ -14,7 +14,7 @@ from .forms import (
     ProductForm,
 )
 
-from .models import Product, CartItem, Order, OrderItem
+from .models import User, Product, CartItem, Order, OrderItem
 
 
 # =========================
@@ -22,33 +22,37 @@ from .models import Product, CartItem, Order, OrderItem
 # =========================
 
 def register_producer_view(request):
-    if request.method == 'POST':
+    if request.method == "POST":
         form = ProducerRegistrationForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
             user.is_producer = True
             user.save()
-            messages.success(request, f"Welcome {user.business_name}! Account created.")
-            return redirect('login')
+
+            messages.success(
+                request,
+                f"Welcome {user.business_name}! Account created successfully. You can now log in using your email and password."
+            )
+            return redirect("login")
     else:
         form = ProducerRegistrationForm()
 
-    return render(request, 'register_producer.html', {'form': form})
+    return render(request, "register_producer.html", {"form": form})
 
 
 def register_customer_view(request):
-    if request.method == 'POST':
+    if request.method == "POST":
         form = CustomerRegistrationForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
             user.is_customer = True
             user.save()
-            messages.success(request, "Customer account created successfully!")
-            return redirect('login')
+            messages.success(request, "Customer account created successfully! You can now log in.")
+            return redirect("login")
     else:
         form = CustomerRegistrationForm()
 
-    return render(request, 'register_customer.html', {'form': form})
+    return render(request, "register_customer.html", {"form": form})
 
 
 # =========================
@@ -56,16 +60,24 @@ def register_customer_view(request):
 # =========================
 
 def login_view(request):
-    if request.method == 'POST':
+    if request.method == "POST":
         form = LoginForm(request.POST)
 
         if form.is_valid():
-            user = authenticate(
-                username=form.cleaned_data['username'],
-                password=form.cleaned_data['password']
-            )
+            entered_email = form.cleaned_data["username"].strip()
+            password = form.cleaned_data["password"]
 
-            if user:
+            user_obj = User.objects.filter(email__iexact=entered_email).first()
+            user = None
+
+            if user_obj:
+                user = authenticate(
+                    request,
+                    username=user_obj.username,
+                    password=password
+                )
+
+            if user is not None:
                 login(request, user)
 
                 if not form.cleaned_data.get("remember_me"):
@@ -73,20 +85,19 @@ def login_view(request):
 
                 if getattr(user, "is_producer", False):
                     return redirect("producer_products")
-                else:
-                    return redirect("marketplace")
+                return redirect("marketplace")
             else:
-                messages.error(request, "Invalid username or password.")
+                messages.error(request, "Invalid email or password.")
     else:
         form = LoginForm()
 
-    return render(request, 'login.html', {'form': form})
+    return render(request, "login.html", {"form": form})
 
 
 def logout_view(request):
     logout(request)
     messages.info(request, "You have been logged out.")
-    return redirect('login')
+    return redirect("login")
 
 
 # =========================
@@ -132,7 +143,7 @@ def add_to_cart(request, product_id):
         cart_item.quantity += 1
         cart_item.save()
 
-    messages.success(request, "Product added to cart")
+    messages.success(request, "Product added to cart.")
     return redirect("marketplace")
 
 
@@ -175,7 +186,7 @@ def remove_cart_item(request, item_id):
 
 
 # =========================
-# CHECKOUT (TC009 FINAL)
+# CHECKOUT
 # =========================
 
 @login_required
@@ -188,7 +199,6 @@ def checkout_view(request):
         messages.error(request, "Your cart is empty.")
         return redirect("cart")
 
-    # GROUP
     producer_map = {}
     for item in items:
         producer_map.setdefault(item.product.producer, []).append(item)
@@ -207,11 +217,9 @@ def checkout_view(request):
             "payout": payout,
         })
 
-    total_amount = sum(g["subtotal"] for g in grouped_items)
+    total_amount = sum(group["subtotal"] for group in grouped_items)
 
-    # POST
     if request.method == "POST":
-
         items = CartItem.objects.filter(
             customer=request.user
         ).select_related("product", "product__producer")
@@ -223,13 +231,11 @@ def checkout_view(request):
         created_orders = []
 
         for producer, producer_items in producer_map.items():
-
-            # ✅ HER PRODUCER İÇİN AYRI INPUT
             delivery_address = request.POST.get(f"address_{producer.id}")
             delivery_date = request.POST.get(f"date_{producer.id}")
 
             if not delivery_address or not delivery_date:
-                messages.error(request, f"Missing delivery info for {producer.username}")
+                messages.error(request, f"Missing delivery info for producer {producer.business_name or producer.username}.")
                 return redirect("checkout")
 
             subtotal = sum(item.subtotal() for item in producer_items)
@@ -238,7 +244,7 @@ def checkout_view(request):
 
             for item in producer_items:
                 if item.quantity > item.product.stock:
-                    messages.error(request, f"Not enough stock for {item.product.name}")
+                    messages.error(request, f"Not enough stock for {item.product.name}.")
                     return redirect("cart")
 
             order = Order.objects.create(
@@ -269,10 +275,8 @@ def checkout_view(request):
 
         items.delete()
 
-        # ✅ MULTI ORDER SUCCESS
-        request.session["latest_order_ids"] = [o.id for o in created_orders]
-
-        messages.success(request, f"{len(created_orders)} orders created successfully!")
+        request.session["latest_order_ids"] = [order.id for order in created_orders]
+        messages.success(request, f"{len(created_orders)} order(s) created successfully.")
 
         return redirect("order_success")
 
@@ -283,12 +287,11 @@ def checkout_view(request):
 
 
 # =========================
-# ORDER SUCCESS (MULTI)
+# ORDER SUCCESS
 # =========================
 
 @login_required
 def order_success_view(request):
-
     order_ids = request.session.get("latest_order_ids", [])
 
     orders = Order.objects.filter(
@@ -335,6 +338,7 @@ def producer_add_product_view(request):
             product = form.save(commit=False)
             product.producer = request.user
             product.save()
+            messages.success(request, "Product added successfully.")
             return redirect("producer_products")
     else:
         form = ProductForm()
@@ -356,6 +360,7 @@ def producer_edit_product_view(request, pk):
         form = ProductForm(request.POST, request.FILES, instance=product)
         if form.is_valid():
             form.save()
+            messages.success(request, "Product updated successfully.")
             return redirect("producer_products")
     else:
         form = ProductForm(instance=product)
@@ -375,4 +380,5 @@ def producer_delete_product_view(request, pk):
         return HttpResponseForbidden()
 
     product.delete()
+    messages.success(request, "Product deleted successfully.")
     return redirect("producer_products")

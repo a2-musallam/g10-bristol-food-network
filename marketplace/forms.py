@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+
 from .models import User, Product
 
 
@@ -55,7 +56,16 @@ class ProducerRegistrationForm(forms.ModelForm):
         user.first_name = names[0] if len(names) > 0 else ""
         user.last_name = names[1] if len(names) > 1 else ""
 
-        user.username = contact_name.replace(" ", "_").lower()
+        # Generate username from full name for internal auth
+        base_username = contact_name.replace(" ", "_").lower()
+        username = base_username
+        counter = 1
+
+        while User.objects.filter(username=username).exists():
+            username = f"{base_username}_{counter}"
+            counter += 1
+
+        user.username = username
         user.set_password(self.cleaned_data["password"])
 
         if commit:
@@ -119,7 +129,7 @@ class CustomerRegistrationForm(forms.ModelForm):
 class LoginForm(forms.Form):
     username = forms.CharField(
         max_length=150,
-        label="Username or Contact Name"
+        label="Email Address"
     )
 
     password = forms.CharField(
@@ -136,7 +146,6 @@ class LoginForm(forms.Form):
 # TC-003: Product Form
 # =========================
 class ProductForm(forms.ModelForm):
-
     class Meta:
         model = Product
         fields = [
