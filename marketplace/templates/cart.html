@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Your Cart</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1000px;
+      margin: 40px auto;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .topbar-left h1 {
+      margin: 0;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 14px;
+    }
+
+    .user-box {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #f8f8f8;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+
+    button {
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+
+    .checkout {
+      margin-top: 20px;
+    }
+
+    a {
+      text-decoration: none;
+      color: #222;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <h1>Shopping Cart</h1>
+    </div>
+
+    <div class="topbar-right">
+      {% if user.is_authenticated %}
+        <div class="user-box">
+          <strong>Hello, {{ user.username }}</strong>
+
+        </div>
+
+        <a href="{% url 'marketplace' %}">Marketplace</a>
+        <a href="{% url 'logout' %}">Logout</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if items %}
+    <table>
+      <tr>
+        <th>Product</th>
+        <th>Price</th>
+        <th>Quantity</th>
+        <th>Subtotal</th>
+        <th>Action</th>
+      </tr>
+
+      {% for item in items %}
+        <tr>
+          <td>{{ item.product.name }}</td>
+          <td>£{{ item.product.price }}</td>
+          <td>
+            <form action="{% url 'update_cart' item.id %}" method="POST">
+              {% csrf_token %}
+              <input type="number" name="quantity" value="{{ item.quantity }}" min="1">
+              <button type="submit">Update</button>
+            </form>
+          </td>
+          <td>£{{ item.subtotal }}</td>
+          <td>
+            <a href="{% url 'remove_cart' item.id %}">Remove</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+
+    <h2>Total: £{{ total }}</h2>
+
+    <div class="checkout">
+      <a href="{% url 'checkout' %}">
+        <button>Proceed to Checkout</button>
+      </a>
+    </div>
+  {% else %}
+    <p>Your cart is empty.</p>
+  {% endif %}
+
+  <a class="back-link" href="{% url 'marketplace' %}">← Back to Marketplace</a>
+
+</body>
+</html>

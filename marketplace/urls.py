@@ -7,6 +7,16 @@ urlpatterns = [
     path("", views.marketplace_view, name="marketplace"),
     path("products/<int:pk>/", views.product_detail_view, name="product_detail"),
 
+    # Shopping Cart (TC-006)
+    path("cart/", views.cart_view, name="cart"),
+    path("cart/add/<int:product_id>/", views.add_to_cart, name="add_to_cart"),
+    path("cart/update/<int:item_id>/", views.update_cart_item, name="update_cart"),
+    path("cart/remove/<int:item_id>/", views.remove_cart_item, name="remove_cart"),
+
+    # Checkout (TC-007)
+    path("checkout/", views.checkout_view, name="checkout"),
+    path("order-success/", views.order_success_view, name="order_success"),
+    path("orders/", views.orders_view, name="orders"),
     # Authentication
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),

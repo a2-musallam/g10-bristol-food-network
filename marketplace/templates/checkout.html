@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Checkout</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            background-color: #fafafa;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .box {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            background: white;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-top: 6px;
+            margin-bottom: 16px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 12px;
+            width: 100%;
+            background: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 6px;
+        }
+
+        .producer-block {
+            margin-bottom: 20px;
+        }
+
+        .producer-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .item {
+            margin-left: 15px;
+        }
+
+        .total {
+            text-align: right;
+            font-size: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Checkout</h1>
+
+<!-- ORDER SUMMARY -->
+<div class="box">
+    <h2>Order Summary</h2>
+
+    {% for group in grouped_items %}
+        <div class="producer-block">
+
+            <div class="producer-name">
+                {{ group.producer.business_name|default:group.producer.username }}
+            </div>
+
+            {% for item in group.items %}
+                <div class="item">
+                    • {{ item.product.name }} —
+                    £{{ item.product.price }} × {{ item.quantity }}
+                    = £{{ item.subtotal }}
+                </div>
+            {% endfor %}
+
+            <div class="producer-subtotal">
+                Subtotal: £{{ group.subtotal }}
+            </div>
+
+        </div>
+    {% endfor %}
+
+    <hr>
+    <div class="total">
+        Total: £{{ total_amount }}
+    </div>
+</div>
+
+<!-- DELIVERY PER PRODUCER -->
+<form method="POST">
+    {% csrf_token %}
+
+    {% for group in grouped_items %}
+        <div class="box">
+
+            <h3>
+                Delivery for {{ group.producer.business_name|default:group.producer.username }}
+            </h3>
+
+            <label>Delivery Address:</label>
+            <textarea name="address_{{ group.producer.id }}" required></textarea>
+
+            <label>Delivery Date & Time:</label>
+            <input type="datetime-local" name="date_{{ group.producer.id }}" required>
+
+        </div>
+    {% endfor %}
+
+    <button type="submit">Confirm Orders</button>
+</form>
+
+<p><a href="{% url 'cart' %}">← Back to Cart</a></p>
+
+</body>
+</html>

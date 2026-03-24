@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Order Success</title>
+    <style>
+        body {
+            font-family: Arial;
+            max-width: 900px;
+            margin: 40px auto;
+        }
+
+        .box {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+
+        .item {
+            margin-left: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Orders Confirmed</h1>
+
+{% for order in orders %}
+    <div class="box">
+
+        <p><strong>Order ID:</strong> {{ order.id }}</p>
+        <p><strong>Producer:</strong> {{ order.producer.business_name|default:order.producer.username }}</p>
+        <p><strong>Status:</strong> {{ order.status }}</p>
+        <p><strong>Delivery Address:</strong> {{ order.delivery_address }}</p>
+        <p><strong>Delivery Date:</strong> {{ order.delivery_date }}</p>
+        <p><strong>Total:</strong> £{{ order.total_amount }}</p>
+
+        <p><strong>Items:</strong></p>
+
+        {% for item in order.items.all %}
+            <div class="item">
+                • {{ item.product.name }} (x{{ item.quantity }}) £{{ item.subtotal }}
+            </div>
+        {% empty %}
+            <p>No items in this order.</p>
+        {% endfor %}
+
+    </div>
+{% empty %}
+    <p>No orders found.</p>
+{% endfor %}
+
+<a href="{% url 'orders' %}">View All Orders</a><br><br>
+<a href="{% url 'marketplace' %}">← Back to Marketplace</a>
+
+</body>
+</html>

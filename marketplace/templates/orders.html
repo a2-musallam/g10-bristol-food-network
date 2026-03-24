@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Orders</title>
+</head>
+<body>
+
+<h1>My Orders</h1>
+
+{% for order in orders %}
+    <div style="border:1px solid #ddd; padding:15px; margin-bottom:15px;">
+
+        <p><strong>Order ID:</strong> {{ order.id }}</p>
+        <p><strong>Producer:</strong> {{ order.producer.business_name|default:order.producer.username }}</p>
+        <p><strong>Status:</strong> {{ order.status }}</p>
+        <p><strong>Total:</strong> £{{ order.total_amount }}</p>
+
+        <p><strong>Items:</strong></p>
+
+        {% for item in order.items.all %}
+            <div>
+                • {{ item.product.name }}  
+                (x{{ item.quantity }})  
+                £{{ item.subtotal }}
+            </div>
+        {% empty %}
+            <p>No items in this order.</p>
+        {% endfor %}
+
+    </div>
+
+{% empty %}
+    <p>No orders yet.</p>
+{% endfor %}
+
+<a href="{% url 'marketplace' %}">← Back</a>
+
+</body>
+</html>
