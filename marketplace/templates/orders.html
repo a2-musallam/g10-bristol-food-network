@@ -2,38 +2,65 @@
 <html>
 <head>
     <title>My Orders</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background: #f7f7f7; }
+        .box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    </style>
 </head>
 <body>
 
 <h1>My Orders</h1>
 
-{% for order in orders %}
-    <div style="border:1px solid #ddd; padding:15px; margin-bottom:15px;">
+<div class="box">
+    <form method="get">
+        <label for="producer">Filter by producer:</label>
+        <select name="producer" id="producer">
+            <option value="">All producers</option>
+            {% for producer in producers %}
+                <option value="{{ producer.id }}" {% if selected_producer == producer.id|stringformat:"s" %}selected{% endif %}>
+                    {{ producer.business_name|default:producer.username }}
+                </option>
+            {% endfor %}
+        </select>
+        <button type="submit">Apply</button>
+        <a href="{% url 'orders' %}">Clear</a>
+    </form>
+</div>
 
+{% for order in orders %}
+    <div class="box">
         <p><strong>Order ID:</strong> {{ order.id }}</p>
         <p><strong>Producer:</strong> {{ order.producer.business_name|default:order.producer.username }}</p>
-        <p><strong>Status:</strong> {{ order.status }}</p>
+        <p><strong>Status:</strong> {{ order.get_status_display }}</p>
         <p><strong>Total:</strong> £{{ order.total_amount }}</p>
+        <p><strong>Order Date:</strong> {{ order.created_at }}</p>
+        <p><strong>Delivery Date:</strong> {{ order.delivery_date }}</p>
+        <p><strong>Delivery Address:</strong> {{ order.delivery_address }}</p>
+
+        {% if order.status_note %}
+            <p><strong>Latest Producer Note:</strong> {{ order.status_note }}</p>
+        {% endif %}
 
         <p><strong>Items:</strong></p>
-
         {% for item in order.items.all %}
             <div>
-                • {{ item.product.name }}  
-                (x{{ item.quantity }})  
-                £{{ item.subtotal }}
+                • {{ item.product.name }} (x{{ item.quantity }}) — £{{ item.subtotal }}
             </div>
         {% empty %}
             <p>No items in this order.</p>
         {% endfor %}
 
+        <p style="margin-top: 12px;">
+            <a href="{% url 'reorder' order.id %}">Reorder available items</a>
+        </p>
     </div>
-
 {% empty %}
-    <p>No orders yet.</p>
+    <div class="box">
+        <p>No orders yet.</p>
+    </div>
 {% endfor %}
 
-<a href="{% url 'marketplace' %}">← Back</a>
+<a href="{% url 'marketplace' %}">← Back to marketplace</a>
 
 </body>
 </html>

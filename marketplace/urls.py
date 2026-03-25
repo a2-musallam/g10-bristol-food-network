@@ -2,32 +2,30 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-
-    # Marketplace
     path("", views.marketplace_view, name="marketplace"),
     path("products/<int:pk>/", views.product_detail_view, name="product_detail"),
 
-    # Shopping Cart (TC-006)
     path("cart/", views.cart_view, name="cart"),
     path("cart/add/<int:product_id>/", views.add_to_cart, name="add_to_cart"),
     path("cart/update/<int:item_id>/", views.update_cart_item, name="update_cart"),
     path("cart/remove/<int:item_id>/", views.remove_cart_item, name="remove_cart"),
 
-    # Checkout (TC-007)
     path("checkout/", views.checkout_view, name="checkout"),
     path("order-success/", views.order_success_view, name="order_success"),
     path("orders/", views.orders_view, name="orders"),
-    # Authentication
+    path("orders/<int:order_id>/reorder/", views.reorder_view, name="reorder"),
+
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
 
-    # Registration
     path("register/producer/", views.register_producer_view, name="register_producer"),
     path("register/customer/", views.register_customer_view, name="register_customer"),
 
-    # Producer product management (TC-003)
     path("producer/products/", views.producer_products_view, name="producer_products"),
     path("producer/products/add/", views.producer_add_product_view, name="producer_add_product"),
     path("producer/products/edit/<int:pk>/", views.producer_edit_product_view, name="producer_edit_product"),
     path("producer/products/delete/<int:pk>/", views.producer_delete_product_view, name="producer_delete_product"),
+
+    path("producer/orders/", views.producer_orders_view, name="producer_orders"),
+    path("producer/orders/<int:order_id>/status/", views.producer_update_order_status_view, name="producer_update_order_status"),
 ]

@@ -155,6 +155,8 @@ class ProductForm(forms.ModelForm):
             "price",
             "unit",
             "availability",
+            "seasonal_start_month",
+            "seasonal_end_month",
             "stock",
             "harvest_date",
             "image",

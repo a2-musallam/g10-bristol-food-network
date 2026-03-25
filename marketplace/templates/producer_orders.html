@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Producer Orders</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background: #f7f7f7; }
+        .box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+
+<h1>Incoming Orders</h1>
+
+<div class="box">
+    <form method="get">
+        <label for="status">Filter by status:</label>
+        <select name="status" id="status">
+            <option value="">All statuses</option>
+            {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Apply</button>
+        <a href="{% url 'producer_orders' %}">Clear</a>
+    </form>
+</div>
+
+{% for order in orders %}
+    <div class="box">
+        <p><strong>Order ID:</strong> {{ order.id }}</p>
+        <p><strong>Customer:</strong> {{ order.customer.get_full_name|default:order.customer.username }}</p>
+        <p><strong>Status:</strong> {{ order.get_status_display }}</p>
+        <p><strong>Delivery Date:</strong> {{ order.delivery_date }}</p>
+        <p><strong>Delivery Address:</strong> {{ order.delivery_address }}</p>
+        <p><strong>Total:</strong> £{{ order.total_amount }}</p>
+
+        {% if order.status_note %}
+            <p><strong>Status Note:</strong> {{ order.status_note }}</p>
+        {% endif %}
+
+        <p><strong>Items:</strong></p>
+        {% for item in order.items.all %}
+            <div>• {{ item.product.name }} (x{{ item.quantity }})</div>
+        {% endfor %}
+
+        <p style="margin-top: 12px;">
+            <a href="{% url 'producer_update_order_status' order.id %}">Update status</a>
+        </p>
+    </div>
+{% empty %}
+    <div class="box">
+        <p>No incoming orders yet.</p>
+    </div>
+{% endfor %}
+
+<p><a href="{% url 'producer_products' %}">← Back to my products</a></p>
+
+</body>
+</html>

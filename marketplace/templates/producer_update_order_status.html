@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Update Order Status</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background: #f7f7f7; }
+        .box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 16px; max-width: 700px; }
+        textarea, select { width: 100%; padding: 8px; margin-top: 6px; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h1>Update Order #{{ order.id }}</h1>
+
+    <p><strong>Current status:</strong> {{ order.get_status_display }}</p>
+
+    {% if allowed_statuses %}
+        <form method="post">
+            {% csrf_token %}
+
+            <label for="status"><strong>New status</strong></label>
+            <select name="status" id="status" required>
+                <option value="">-- Select new status --</option>
+                {% for value in allowed_statuses %}
+                    <option value="{{ value }}">
+                        {% if value == "confirmed" %}Confirmed{% endif %}
+                        {% if value == "ready" %}Ready for Collection / Delivery{% endif %}
+                        {% if value == "delivered" %}Delivered{% endif %}
+                        {% if value == "cancelled" %}Cancelled{% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <label for="status_note"><strong>Optional note for customer</strong></label>
+            <textarea name="status_note" id="status_note" rows="4" placeholder="Example: Your order will be ready tomorrow morning."></textarea>
+
+            <button type="submit">Save update</button>
+        </form>
+    {% else %}
+        <p>This order cannot move to another status.</p>
+    {% endif %}
+
+    <p><a href="{% url 'producer_orders' %}">← Back to producer orders</a></p>
+</div>
+
+</body>
+</html>

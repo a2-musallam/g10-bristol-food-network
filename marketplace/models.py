@@ -1,11 +1,9 @@
+from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from decimal import Decimal
 
 
-# Custom User for Bristol Food Network roles
 class User(AbstractUser):
-
     is_producer = models.BooleanField(default=False)
     is_customer = models.BooleanField(default=False)
     is_restaurant = models.BooleanField(default=False)
@@ -20,7 +18,6 @@ class User(AbstractUser):
 
 
 class Product(models.Model):
-
     CATEGORY_CHOICES = [
         ("veg", "Vegetables"),
         ("dairy_eggs", "Dairy & Eggs"),
@@ -33,6 +30,21 @@ class Product(models.Model):
         ("in_season", "In Season (Available)"),
         ("year_round", "Available Year-Round"),
         ("unavailable", "Unavailable / Out of Season"),
+    ]
+
+    MONTH_CHOICES = [
+        (1, "January"),
+        (2, "February"),
+        (3, "March"),
+        (4, "April"),
+        (5, "May"),
+        (6, "June"),
+        (7, "July"),
+        (8, "August"),
+        (9, "September"),
+        (10, "October"),
+        (11, "November"),
+        (12, "December"),
     ]
 
     producer = models.ForeignKey(
@@ -58,16 +70,51 @@ class Product(models.Model):
     image = models.ImageField(upload_to="products/", blank=True, null=True)
     allergens = models.CharField(max_length=255, blank=True, null=True)
 
+    seasonal_start_month = models.PositiveSmallIntegerField(
+        choices=MONTH_CHOICES,
+        blank=True,
+        null=True
+    )
+    seasonal_end_month = models.PositiveSmallIntegerField(
+        choices=MONTH_CHOICES,
+        blank=True,
+        null=True
+    )
+
     def __str__(self):
         return self.name
 
+    def season_label(self):
+        if self.seasonal_start_month and self.seasonal_end_month:
+            start = dict(self.MONTH_CHOICES).get(self.seasonal_start_month)
+            end = dict(self.MONTH_CHOICES).get(self.seasonal_end_month)
+            return f"{start} - {end}"
+        return ""
+
+    def is_currently_in_season(self, month=None):
+        if self.availability == "year_round":
+            return True
+        if self.availability == "unavailable":
+            return False
+        if not self.seasonal_start_month or not self.seasonal_end_month:
+            return True
+
+        if month is None:
+            from django.utils import timezone
+            month = timezone.now().month
+
+        if self.seasonal_start_month <= self.seasonal_end_month:
+            return self.seasonal_start_month <= month <= self.seasonal_end_month
+
+        return month >= self.seasonal_start_month or month <= self.seasonal_end_month
+
 
 class Order(models.Model):
-
     STATUS_CHOICES = [
         ("pending", "Pending"),
         ("confirmed", "Confirmed"),
-        ("completed", "Completed"),
+        ("ready", "Ready for Collection / Delivery"),
+        ("delivered", "Delivered"),
         ("cancelled", "Cancelled"),
     ]
 
@@ -95,6 +142,7 @@ class Order(models.Model):
         choices=STATUS_CHOICES,
         default="pending"
     )
+    status_note = models.CharField(max_length=255, blank=True, null=True)
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     commission_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -102,6 +150,7 @@ class Order(models.Model):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def calculate_commission(self):
         return (self.subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
@@ -109,12 +158,21 @@ class Order(models.Model):
     def calculate_producer_amount(self):
         return (self.subtotal * Decimal("0.95")).quantize(Decimal("0.01"))
 
+    def next_allowed_statuses(self):
+        flow = {
+            "pending": ["confirmed", "cancelled"],
+            "confirmed": ["ready", "cancelled"],
+            "ready": ["delivered"],
+            "delivered": [],
+            "cancelled": [],
+        }
+        return flow.get(self.status, [])
+
     def __str__(self):
         return f"Order #{self.id} - {self.customer.username}"
 
 
 class OrderItem(models.Model):
-
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
 
@@ -127,7 +185,6 @@ class OrderItem(models.Model):
 
 
 class CartItem(models.Model):
-
     customer = models.ForeignKey(User, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.IntegerField(default=1)

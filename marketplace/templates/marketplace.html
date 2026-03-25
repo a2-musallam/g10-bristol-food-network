@@ -1,109 +1,47 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Marketplace</title>
+  <title>Bristol Food Network Marketplace</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 1000px;
-      margin: 40px auto;
-    }
-
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 25px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid #ddd;
-    }
-
-    .topbar-left h1 {
-      margin: 0;
-    }
-
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      font-size: 14px;
-    }
-
-    .user-box {
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background: #f8f8f8;
-    }
-
-    .card {
-      border: 1px solid #ddd;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-    }
-
-    .allergen {
-      margin-top: 8px;
-      padding: 8px;
-      border: 1px solid #c00000;
-      background: #fff0f0;
-      border-radius: 6px;
-    }
-
-    a {
-      text-decoration: none;
-      color: #222;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    .msg {
-      padding: 10px;
-      margin-bottom: 15px;
-      border-radius: 6px;
-      background: #eef6ee;
-      border: 1px solid #b7d7b7;
-    }
+    body { font-family: Arial, sans-serif; margin: 30px; background: #f7f7f7; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .topbar-right a { margin-left: 12px; }
+    .msg { padding:10px; margin-bottom:15px; border-radius:6px; background:#eef6ee; border:1px solid #b7d7b7; }
+    .filters, .categories, .card { background:#fff; border:1px solid #ddd; border-radius:8px; padding:16px; margin-bottom:16px; }
+    .categories a { margin-right:10px; }
+    .badge { display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; background:#eef; margin-right:6px; }
+    .warning { background:#fff3cd; padding:8px; border-radius:6px; }
   </style>
 </head>
 <body>
 
-  <!-- TOP BAR -->
   <div class="topbar">
-    <div class="topbar-left">
+    <div>
       <h1>Marketplace</h1>
     </div>
 
-  <div class="topbar-right">
-  {% if user.is_authenticated %}
+    <div class="topbar-right">
+      {% if user.is_authenticated %}
+        <strong>Hello, {{ user.username }}</strong>
 
-    <div class="user-box">
-      <strong>Hello, {{ user.username }}</strong>
+        {% if user.is_customer %}
+          <a href="{% url 'cart' %}">Cart</a>
+          <a href="{% url 'orders' %}">My Orders</a>
+        {% endif %}
+
+        {% if user.is_producer %}
+          <a href="{% url 'producer_products' %}">My Products</a>
+          <a href="{% url 'producer_orders' %}">Producer Orders</a>
+          <a href="{% url 'producer_add_product' %}">Add Product</a>
+        {% endif %}
+
+        <a href="{% url 'logout' %}">Logout</a>
+      {% else %}
+        <a href="{% url 'login' %}">Login</a>
+        <a href="{% url 'register_customer' %}">Register as Customer</a>
+        <a href="{% url 'register_producer' %}">Register as Producer</a>
+      {% endif %}
     </div>
-
-    {% if user.is_customer %}
-      <a href="{% url 'cart' %}">🛒 Cart</a>
-      <a href="{% url 'orders' %}">📦 My Orders</a>
-    {% endif %}
-
-    {% if user.is_producer %}
-      <a href="{% url 'producer_products' %}">My Products</a>
-      <a href="{% url 'producer_add_product' %}">Add Product</a>
-    {% endif %}
-
-    <a href="{% url 'logout' %}">Logout</a>
-
-  {% else %}
-
-    <a href="{% url 'login' %}">Login</a>
-    <a href="{% url 'register_customer' %}">Register as Customer</a>
-    <a href="{% url 'register_producer' %}">Register as Producer</a>
-
-  {% endif %}
-</div>
   </div>
 
   {% if messages %}
@@ -112,32 +50,60 @@
     {% endfor %}
   {% endif %}
 
+  <div class="filters">
+    <form method="get">
+      <input
+        type="text"
+        name="q"
+        placeholder="Search by product, description, or producer"
+        value="{{ search_query }}"
+        style="width: 300px; padding: 8px;"
+      >
+
+      <select name="category" style="padding: 8px;">
+        <option value="">All categories</option>
+        {% for value, label in categories %}
+          <option value="{{ value }}" {% if selected_category == value %}selected{% endif %}>
+            {{ label }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <button type="submit">Search</button>
+      <a href="{% url 'marketplace' %}">Clear</a>
+    </form>
+  </div>
+
+  <div class="categories">
+    <strong>Browse by category:</strong><br><br>
+    <a href="{% url 'marketplace' %}">All</a>
+    {% for value, label in categories %}
+      <a href="{% url 'marketplace' %}?category={{ value }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+
   {% if products %}
     {% for p in products %}
       <div class="card">
+        <h2><a href="{% url 'product_detail' p.pk %}">{{ p.name }}</a></h2>
 
-        <h2>
-          <a href="{% url 'product_detail' p.pk %}">
-            {{ p.name }}
-          </a>
-        </h2>
-
+        <p><strong>Producer:</strong> {{ p.producer.business_name|default:p.producer.username }}</p>
         <p><strong>Price:</strong> £{{ p.price }} / {{ p.unit }}</p>
         <p><strong>Stock:</strong> {{ p.stock }}</p>
+        <p><strong>Category:</strong> {{ p.get_category_display }}</p>
 
-        {% if user.is_authenticated and user.is_customer %}
-          <p>
-            <a href="{% url 'add_to_cart' p.id %}">
-              🛒 Add to Cart
-            </a>
-          </p>
-        {% elif not user.is_authenticated %}
-          <p>
-            <a href="{% url 'login' %}">Login to purchase</a>
-          </p>
+        <p>
+          <span class="badge">{{ p.get_availability_display }}</span>
+          {% if p.season_label %}
+            <span class="badge">Available: {{ p.season_label }}</span>
+          {% endif %}
+        </p>
+
+        {% if p.harvest_date %}
+          <p><strong>Harvest date:</strong> {{ p.harvest_date }}</p>
         {% endif %}
 
-        <div class="allergen">
+        <div class="warning">
           <strong>Allergens:</strong>
           {% if p.allergens %}
             {{ p.allergens }}
@@ -146,10 +112,19 @@
           {% endif %}
         </div>
 
+        {% if user.is_authenticated and user.is_customer %}
+          <p style="margin-top: 12px;">
+            <a href="{% url 'add_to_cart' p.id %}">Add to Cart</a>
+          </p>
+        {% elif not user.is_authenticated %}
+          <p><a href="{% url 'login' %}">Login to purchase</a></p>
+        {% endif %}
       </div>
     {% endfor %}
   {% else %}
-    <p>No products yet.</p>
+    <div class="card">
+      <p>No matching products found.</p>
+    </div>
   {% endif %}
 
 </body>
