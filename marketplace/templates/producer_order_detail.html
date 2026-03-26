@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Order #{{ order.id }} Details</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background: #f7f7f7; }
+        .box { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; max-width: 800px; }
+    </style>
+</head>
+<body>
+    <h1>Order #{{ order.id }} Details</h1>
+    <div class="box">
+        <h3>Customer Information</h3>
+        <p><strong>Name:</strong> {{ order.customer.get_full_name|default:order.customer.username }}</p>
+        <p><strong>Email:</strong> <a href="mailto:{{ order.customer.email }}">{{ order.customer.email }}</a></p>
+        <p><strong>Phone:</strong> {{ order.customer.phone|default:"Not provided" }}</p>
+
+        <h3>Delivery Details</h3>
+        <p><strong>Order Date:</strong> {{ order.created_at|date:"j/n/Y g:i a" }}</p>
+        <p><strong>Delivery Date:</strong> {{ order.delivery_date|date:"j/n/Y g:i a" }}</p>
+        <p><strong>Delivery Address:</strong> {{ order.delivery_address }}</p>
+        <p><strong>Special Instructions:</strong> {{ order.special_instructions|default:"None" }}</p>
+
+        <h3>Order Items</h3>
+        <ul>
+            {% for item in order.items.all %}
+            <li>{{ item.product.name }} - {{ item.quantity }}</li>
+            {% endfor %}
+        </ul>
+        <p><strong>Total Value:</strong> £{{ order.total_amount }}</p>
+        <p><strong>Status:</strong> {{ order.get_status_display }}</p>
+
+        <a href="{% url 'producer_orders' %}">← Back to Orders</a>
+    </div>
+</body>
+</html>

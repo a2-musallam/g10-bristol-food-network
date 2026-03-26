@@ -136,6 +136,7 @@ class Order(models.Model):
 
     delivery_address = models.TextField(blank=True, null=True)
     delivery_date = models.DateTimeField(blank=True, null=True)
+    special_instructions = models.TextField(blank=True, null=True)
 
     status = models.CharField(
         max_length=20,

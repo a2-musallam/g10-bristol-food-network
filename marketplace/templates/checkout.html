@@ -110,8 +110,11 @@
             <label>Delivery Address:</label>
             <textarea name="address_{{ group.producer.id }}" required></textarea>
 
-            <label>Delivery Date & Time:</label>
+            <label>Delivery Date & Time (Minimum 48 hours notice):</label>
             <input type="datetime-local" name="date_{{ group.producer.id }}" required>
+
+            <label>Special Instructions (optional):</label>
+            <textarea name="instructions_{{ group.producer.id }}" rows="2" placeholder="e.g. Delivery to kitchen entrance..."></textarea>
 
         </div>
     {% endfor %}

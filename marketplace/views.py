@@ -1,10 +1,13 @@
+import csv
+from collections import OrderedDict
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from django.http import HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -222,6 +225,7 @@ def checkout_view(request):
         for producer, producer_items in producer_map.items():
             delivery_address = request.POST.get(f"address_{producer.id}")
             delivery_date_raw = request.POST.get(f"date_{producer.id}")
+            special_instructions = request.POST.get(f"instructions_{producer.id}", "")
 
             if not delivery_address or not delivery_date_raw:
                 messages.error(request, f"Missing delivery info for producer {producer.business_name or producer.username}.")
@@ -249,6 +253,7 @@ def checkout_view(request):
                 producer=producer,
                 delivery_address=delivery_address,
                 delivery_date=delivery_date,
+                special_instructions=special_instructions,
                 status="pending",
                 subtotal=subtotal,
                 commission_amount=commission,
@@ -483,3 +488,100 @@ def producer_delete_product_view(request, pk):
     product.delete()
     messages.success(request, "Product deleted successfully.")
     return redirect("producer_products")
+
+
+@login_required
+def producer_order_detail_view(request, order_id):
+    if not request.user.is_producer:
+        return HttpResponseForbidden()
+
+    order = get_object_or_404(
+        Order.objects.select_related("customer").prefetch_related("items__product"),
+        id=order_id,
+        producer=request.user
+    )
+
+    return render(request, "producer_order_detail.html", {
+        "order": order
+    })
+
+
+@login_required
+def producer_finances_view(request):
+    if not request.user.is_producer:
+        return HttpResponseForbidden()
+
+    delivered_orders = Order.objects.filter(
+        producer=request.user,
+        status="delivered"
+    ).order_by("-updated_at")
+
+    weekly_data = OrderedDict()
+    ytd_total = Decimal("0.00")
+    current_year = timezone.now().year
+
+    for order in delivered_orders:
+        if order.updated_at.year == current_year:
+            ytd_total += order.producer_amount
+
+        # Group by week based on delivery timestamp
+        week_start = order.updated_at.date() - timedelta(days=order.updated_at.date().weekday())
+        week_str = week_start.strftime("%Y-%m-%d")
+
+        if week_str not in weekly_data:
+            days_since_start = (timezone.now().date() - week_start).days
+            status = "Processed" if days_since_start > 7 else "Pending Bank Transfer"
+
+            weekly_data[week_str] = {
+                "week_start": week_start,
+                "status": status,
+                "total_orders_value": Decimal("0.00"),
+                "commission": Decimal("0.00"),
+                "payout": Decimal("0.00"),
+                "orders":[]
+            }
+
+        weekly_data[week_str]["total_orders_value"] += order.total_amount
+        weekly_data[week_str]["commission"] += order.commission_amount
+        weekly_data[week_str]["payout"] += order.producer_amount
+        weekly_data[week_str]["orders"].append(order)
+
+    # Handling CSV download request
+    if request.GET.get("download_csv"):
+        week = request.GET.get("week")
+
+        # Converting the internal YYYY-MM-DD to day-month-year for the filename
+        try:
+            week_date = datetime.strptime(week, "%Y-%m-%d")
+            filename_date = f"{week_date.day}-{week_date.month}-{week_date.year}"
+        except (ValueError, TypeError):
+            filename_date = week
+
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="settlement_report_{filename_date}.csv"'
+
+        # Added UTF-8 Byte Order Mark (BOM) to fix Excel's Â£ issue
+        response.write('\ufeff')
+
+        writer = csv.writer(response)
+        writer.writerow(['Order Number', 'Customer Name', 'Items Sold', 'Date', 'Total Amount', 'Commission', 'Payout'])
+
+        if week in weekly_data:
+            for o in weekly_data[week]["orders"]:
+                items_sold = ", ".join([f"{item.product.name} (x{item.quantity})" for item in o.items.all()])
+                writer.writerow([
+                    o.id,
+                    o.customer.get_full_name() or o.customer.username,
+                    items_sold,
+                    f"{o.updated_at.day}/{o.updated_at.month}/{o.updated_at.year}",
+                    f"£{o.total_amount}",
+                    f"£{o.commission_amount}",
+                    f"£{o.producer_amount}"
+                ])
+        return response
+
+    return render(request, "producer_finances.html", {
+        "weekly_data": weekly_data.values(),
+        "ytd_total": ytd_total,
+        "current_year": current_year
+    })

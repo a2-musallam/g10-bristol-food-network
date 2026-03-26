@@ -33,8 +33,8 @@
         <p><strong>Producer:</strong> {{ order.producer.business_name|default:order.producer.username }}</p>
         <p><strong>Status:</strong> {{ order.get_status_display }}</p>
         <p><strong>Total:</strong> £{{ order.total_amount }}</p>
-        <p><strong>Order Date:</strong> {{ order.created_at }}</p>
-        <p><strong>Delivery Date:</strong> {{ order.delivery_date }}</p>
+        <p><strong>Order Date:</strong> {{ order.created_at|date:"j/n/Y g:i a" }}</p>
+        <p><strong>Delivery Date:</strong> {{ order.delivery_date|date:"j/n/Y g:i a" }}</p>
         <p><strong>Delivery Address:</strong> {{ order.delivery_address }}</p>
 
         {% if order.status_note %}

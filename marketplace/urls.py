@@ -27,5 +27,7 @@ urlpatterns = [
     path("producer/products/delete/<int:pk>/", views.producer_delete_product_view, name="producer_delete_product"),
 
     path("producer/orders/", views.producer_orders_view, name="producer_orders"),
+    path("producer/orders/<int:order_id>/", views.producer_order_detail_view, name="producer_order_detail"),
     path("producer/orders/<int:order_id>/status/", views.producer_update_order_status_view, name="producer_update_order_status"),
+    path("producer/finances/", views.producer_finances_view, name="producer_finances"),
 ]
