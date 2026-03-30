@@ -47,6 +47,29 @@
             color: #c00000;
         }
 
+        .review-box {
+            margin-top: 25px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            background-color: #fafafa;
+            border-radius: 6px;
+        }
+
+        .review-item {
+            margin-top: 15px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: white;
+        }
+
+        .rating-summary {
+            margin-top: 20px;
+            padding: 12px;
+            background-color: #f4f4f4;
+            border-radius: 6px;
+        }
+
         img {
             max-width: 400px;
             margin-top: 20px;
@@ -57,6 +80,15 @@
             margin-top: 30px;
             display: inline-block;
         }
+
+        .action-links {
+            margin-top: 20px;
+        }
+
+        .action-links a,
+        .action-links button {
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
@@ -65,12 +97,15 @@
 
         <h1>{{ product.name }}</h1>
 
-        <p><strong>Produced by:</strong> {{ product.producer.business_name }}</p>
+        <p>
+            <strong>Produced by:</strong>
+            {{ product.producer.business_name|default:product.producer.username }}
+        </p>
 
         <p>{{ product.description }}</p>
 
         <div class="price">
-            £{{ product.price }}
+            £{{ product.price }}{% if product.unit %} per {{ product.unit }}{% endif %}
         </div>
 
         <div class="stock">
@@ -80,6 +115,16 @@
                 <span class="out-of-stock">Out of Stock</span>
             {% endif %}
         </div>
+
+        {% if product.harvest_date %}
+            <p><strong>Harvest Date:</strong> {{ product.harvest_date }}</p>
+        {% endif %}
+
+        <p><strong>Availability:</strong> {{ product.get_availability_display }}</p>
+
+        {% if product.season_label %}
+            <p><strong>Season:</strong> {{ product.season_label }}</p>
+        {% endif %}
 
         {% if product.image %}
             <img src="{{ product.image.url }}" alt="{{ product.name }}">
@@ -95,6 +140,57 @@
                 <p>{{ product.allergens }}</p>
             {% else %}
                 <p>No common allergens.</p>
+            {% endif %}
+        </div>
+
+        <!-- ADD TO CART -->
+        <div class="action-links">
+            {% if user.is_authenticated and user.is_customer and product.stock > 0 %}
+                <form method="post" action="{% url 'add_to_cart' product.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit">Add to Cart</button>
+                </form>
+            {% endif %}
+        </div>
+
+        <!-- TC-024 REVIEWS -->
+        <div class="rating-summary">
+            <h2>Customer Reviews</h2>
+            <p>
+                <strong>Average Rating:</strong>
+                {{ product.average_rating|floatformat:1 }}/5
+                ({{ product.review_count }} review{{ product.review_count|pluralize }})
+            </p>
+
+            {% if user.is_authenticated and user_can_review and not already_reviewed %}
+                <p>
+                    <a href="{% url 'add_review' product.id %}">Write a Review</a>
+                </p>
+            {% elif user.is_authenticated and already_reviewed %}
+                <p><strong>You have already reviewed this product.</strong></p>
+            {% elif user.is_authenticated and user.is_customer %}
+                <p>You can review this product after you have purchased it and the order is marked as delivered.</p>
+            {% else %}
+                <p>Log in as a customer to leave a review.</p>
+            {% endif %}
+        </div>
+
+        <div class="review-box">
+            {% if reviews %}
+                {% for review in reviews %}
+                    <div class="review-item">
+                        <p><strong>{{ review.rating }}/5 - {{ review.title }}</strong></p>
+                        <p>{{ review.comment }}</p>
+                        <p>
+                            <small>
+                                By {{ review.customer.first_name|default:review.customer.username }}
+                                on {{ review.created_at|date:"d M Y H:i" }}
+                            </small>
+                        </p>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No reviews yet.</p>
             {% endif %}
         </div>
 

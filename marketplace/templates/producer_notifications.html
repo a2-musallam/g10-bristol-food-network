@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Notifications</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+        }
+
+        .notification {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+        }
+
+        .unread {
+            border: 2px solid red;
+            background-color: #fff0f0;
+        }
+
+        .read {
+            background-color: #f4f4f4;
+        }
+
+        .header {
+            margin-bottom: 20px;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 6px 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🔔 Low Stock Notifications</h1>
+
+        <p>
+            <a href="{% url 'producer_products' %}">← Back to Products</a>
+            |
+            <a href="{% url 'logout' %}">Logout</a>
+        </p>
+    </div>
+
+    {% if notifications %}
+        {% for notification in notifications %}
+            <div class="notification {% if not notification.is_read %}unread{% else %}read{% endif %}">
+
+                <h3>{{ notification.product.name }}</h3>
+
+                <p>{{ notification.message }}</p>
+
+                <p>
+                    <small>
+                        {{ notification.created_at|date:"d M Y H:i" }}
+                    </small>
+                </p>
+
+                {% if not notification.is_read %}
+                    <form method="post" action="{% url 'mark_notification_read' notification.id %}">
+                        {% csrf_token %}
+                        <button type="submit">Mark as Read</button>
+                    </form>
+                {% else %}
+                    <p><em>Already read</em></p>
+                {% endif %}
+
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>No notifications 🎉</p>
+    {% endif %}
+
+</body>
+</html>

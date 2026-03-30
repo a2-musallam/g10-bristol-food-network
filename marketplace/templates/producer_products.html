@@ -12,6 +12,9 @@
     <a href="{% url 'producer_orders' %}">Orders</a> |
     <a href="{% url 'producer_finances' %}">Financial Reports</a> |
     <a href="{% url 'producer_add_product' %}">➕ Add Product</a> |
+    <a href="{% url 'producer_notifications' %}">
+        🔔 Notifications ({{ unread_notifications_count }})
+    </a> |
     <a href="{% url 'logout' %}">Logout</a>
 </p>
 
@@ -26,8 +29,16 @@
 
                 <p>
                     <strong>Price:</strong> £{{ product.price }} <br>
-                    <strong>Stock:</strong> {{ product.stock }}
+                    <strong>Stock:</strong> {{ product.stock }} <br>
+                    <strong>Low Stock Threshold:</strong> {{ product.low_stock_threshold }} <br>
+                    <strong>Availability:</strong> {{ product.get_availability_display }}
                 </p>
+
+                {% if product.stock <= product.low_stock_threshold %}
+                    <p style="color: red;">
+                        ⚠ <strong>Low Stock Alert:</strong> This product is at or below its threshold.
+                    </p>
+                {% endif %}
 
                 {% if product.description %}
                     <p>{{ product.description }}</p>
@@ -40,6 +51,12 @@
                 {% else %}
                     <p style="color: green;">
                         No allergens declared
+                    </p>
+                {% endif %}
+
+                {% if product.season_label %}
+                    <p>
+                        <strong>Season:</strong> {{ product.season_label }}
                     </p>
                 {% endif %}
 

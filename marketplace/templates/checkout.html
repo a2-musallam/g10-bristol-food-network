@@ -22,13 +22,14 @@
             background: white;
         }
 
-        input, textarea {
+        input, textarea, select {
             width: 100%;
             padding: 10px;
             margin-top: 6px;
             margin-bottom: 16px;
             border-radius: 6px;
             border: 1px solid #ccc;
+            box-sizing: border-box;
         }
 
         button {
@@ -38,6 +39,7 @@
             color: white;
             border: none;
             border-radius: 6px;
+            cursor: pointer;
         }
 
         .producer-block {
@@ -58,13 +60,40 @@
             font-size: 20px;
             font-weight: bold;
         }
+
+        .payment-box {
+            margin-top: 15px;
+            padding: 15px;
+            border: 1px dashed #bbb;
+            border-radius: 8px;
+            background: #fcfcfc;
+        }
+
+        .test-note {
+            font-size: 14px;
+            color: #666;
+            margin-top: -8px;
+            margin-bottom: 12px;
+        }
     </style>
+
+    <script>
+        function toggleCardFields(producerId) {
+            const select = document.getElementById("payment_method_" + producerId);
+            const cardFields = document.getElementById("card_fields_" + producerId);
+
+            if (select.value === "card") {
+                cardFields.style.display = "block";
+            } else {
+                cardFields.style.display = "none";
+            }
+        }
+    </script>
 </head>
 <body>
 
 <h1>Checkout</h1>
 
-<!-- ORDER SUMMARY -->
 <div class="box">
     <h2>Order Summary</h2>
 
@@ -84,7 +113,9 @@
             {% endfor %}
 
             <div class="producer-subtotal">
-                Subtotal: £{{ group.subtotal }}
+                <p>Subtotal: £{{ group.subtotal }}</p>
+                <p>Network Commission (5%): £{{ group.commission }}</p>
+                <p>Producer Payout (95%): £{{ group.payout }}</p>
             </div>
 
         </div>
@@ -96,7 +127,6 @@
     </div>
 </div>
 
-<!-- DELIVERY PER PRODUCER -->
 <form method="POST">
     {% csrf_token %}
 
@@ -111,7 +141,59 @@
             <textarea name="address_{{ group.producer.id }}" required></textarea>
 
             <label>Delivery Date & Time (Minimum 48 hours notice):</label>
-            <input type="datetime-local" name="date_{{ group.producer.id }}" required>
+            <input
+                type="datetime-local"
+                name="date_{{ group.producer.id }}"
+                min="{{ group.minimum_date }}"
+                required
+            >
+
+            <div class="payment-box">
+                <h4>Payment Method</h4>
+
+                <label>Select Payment Method:</label>
+                <select
+                    name="payment_method_{{ group.producer.id }}"
+                    id="payment_method_{{ group.producer.id }}"
+                    onchange="toggleCardFields('{{ group.producer.id }}')"
+                    required
+                >
+                    <option value="">-- Select Payment Method --</option>
+                    <option value="card">Debit / Credit Card</option>
+                    <option value="paypal">PayPal (Test)</option>
+                    <option value="klarna">Klarna (Test)</option>
+                </select>
+
+                <p class="test-note">
+                    Demo checkout uses test payments only.
+                </p>
+
+                <div id="card_fields_{{ group.producer.id }}" style="display:none;">
+                    <label>Cardholder Name:</label>
+                    <input type="text" name="card_name_{{ group.producer.id }}">
+
+                    <label>Card Number:</label>
+                    <input
+                        type="text"
+                        name="card_number_{{ group.producer.id }}"
+                        placeholder="Use 4242424242424242"
+                    >
+
+                    <label>Expiry Date:</label>
+                    <input
+                        type="text"
+                        name="expiry_date_{{ group.producer.id }}"
+                        placeholder="Use 12/34"
+                    >
+
+                    <label>CVV:</label>
+                    <input
+                        type="text"
+                        name="cvv_{{ group.producer.id }}"
+                        placeholder="Use 123"
+                    >
+                </div>
+            </div>
 
             <label>Special Instructions (optional):</label>
             <textarea name="instructions_{{ group.producer.id }}" rows="2" placeholder="e.g. Delivery to kitchen entrance..."></textarea>

@@ -3,12 +3,9 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from .models import User, Product
+from .models import Product, Review, User
 
 
-# =========================
-# TC-001: Producer Registration Form
-# =========================
 class ProducerRegistrationForm(forms.ModelForm):
     contact_name = forms.CharField(
         label="Full Name",
@@ -56,7 +53,6 @@ class ProducerRegistrationForm(forms.ModelForm):
         user.first_name = names[0] if len(names) > 0 else ""
         user.last_name = names[1] if len(names) > 1 else ""
 
-        # Generate username from full name for internal auth
         base_username = contact_name.replace(" ", "_").lower()
         username = base_username
         counter = 1
@@ -74,9 +70,6 @@ class ProducerRegistrationForm(forms.ModelForm):
         return user
 
 
-# =========================
-# TC-002: Customer Registration Form
-# =========================
 class CustomerRegistrationForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput)
     confirm_password = forms.CharField(widget=forms.PasswordInput)
@@ -123,18 +116,13 @@ class CustomerRegistrationForm(forms.ModelForm):
         return user
 
 
-# =========================
-# TC-022: Login Form
-# =========================
 class LoginForm(forms.Form):
     username = forms.CharField(
         max_length=150,
         label="Email Address"
     )
 
-    password = forms.CharField(
-        widget=forms.PasswordInput
-    )
+    password = forms.CharField(widget=forms.PasswordInput)
 
     remember_me = forms.BooleanField(
         required=False,
@@ -142,9 +130,6 @@ class LoginForm(forms.Form):
     )
 
 
-# =========================
-# TC-003: Product Form
-# =========================
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
@@ -158,6 +143,7 @@ class ProductForm(forms.ModelForm):
             "seasonal_start_month",
             "seasonal_end_month",
             "stock",
+            "low_stock_threshold",
             "harvest_date",
             "image",
             "allergens",
@@ -171,9 +157,6 @@ class ProductForm(forms.ModelForm):
         }
 
 
-# =========================
-# TC-007: Checkout Form
-# =========================
 class CheckoutForm(forms.Form):
     delivery_address = forms.CharField(
         label="Delivery Address",
@@ -196,27 +179,33 @@ class CheckoutForm(forms.Form):
         choices=[
             ("", "-- Select Payment Method --"),
             ("card", "Credit / Debit Card"),
+            ("paypal", "PayPal (Test)"),
+            ("klarna", "Klarna (Test)"),
         ]
     )
 
     card_name = forms.CharField(
         label="Cardholder Name",
-        max_length=100
+        max_length=100,
+        required=False
     )
 
     card_number = forms.CharField(
         label="Card Number",
-        max_length=16
+        max_length=16,
+        required=False
     )
 
     expiry_date = forms.CharField(
         label="Expiry Date",
-        max_length=5
+        max_length=5,
+        required=False
     )
 
     cvv = forms.CharField(
         label="CVV",
-        max_length=3
+        max_length=3,
+        required=False
     )
 
     def clean_delivery_date(self):
@@ -227,20 +216,37 @@ class CheckoutForm(forms.Form):
 
         return delivery_date
 
-    def clean_card_number(self):
-        card_number = self.cleaned_data.get("card_number", "").replace(" ", "")
-        if card_number != "4242424242424242":
-            raise forms.ValidationError("Use test card number: 4242424242424242")
-        return card_number
+    def clean(self):
+        cleaned_data = super().clean()
+        payment_method = cleaned_data.get("payment_method")
 
-    def clean_expiry_date(self):
-        expiry_date = self.cleaned_data.get("expiry_date", "")
-        if expiry_date != "12/34":
-            raise forms.ValidationError("Use test expiry date: 12/34")
-        return expiry_date
+        if payment_method == "card":
+            card_number = cleaned_data.get("card_number", "").replace(" ", "")
+            expiry_date = cleaned_data.get("expiry_date", "")
+            cvv = cleaned_data.get("cvv", "")
 
-    def clean_cvv(self):
-        cvv = self.cleaned_data.get("cvv", "")
-        if cvv != "123":
-            raise forms.ValidationError("Use test CVV: 123")
-        return cvv
+            if card_number != "4242424242424242":
+                self.add_error("card_number", "Use test card number: 4242424242424242")
+            if expiry_date != "12/34":
+                self.add_error("expiry_date", "Use test expiry date: 12/34")
+            if cvv != "123":
+                self.add_error("cvv", "Use test CVV: 123")
+
+        return cleaned_data
+
+
+class ReviewForm(forms.ModelForm):
+    class Meta:
+        model = Review
+        fields = ["rating", "title", "comment"]
+        widgets = {
+            "rating": forms.NumberInput(attrs={"min": 1, "max": 5}),
+            "title": forms.TextInput(attrs={"placeholder": "Review title"}),
+            "comment": forms.Textarea(attrs={"rows": 4, "placeholder": "Write your review here..."})
+        }
+
+    def clean_rating(self):
+        rating = self.cleaned_data.get("rating")
+        if rating < 1 or rating > 5:
+            raise forms.ValidationError("Rating must be between 1 and 5.")
+        return rating

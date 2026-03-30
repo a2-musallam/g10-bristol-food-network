@@ -12,8 +12,44 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .forms import CustomerRegistrationForm, LoginForm, ProductForm, ProducerRegistrationForm
-from .models import CartItem, Order, OrderItem, Product, User
+from .forms import (
+    CustomerRegistrationForm,
+    LoginForm,
+    ProductForm,
+    ProducerRegistrationForm,
+    ReviewForm,
+)
+from .models import CartItem, Notification, Order, OrderItem, Product, Review, User
+
+
+def check_low_stock(product):
+    if product.stock <= product.low_stock_threshold:
+        Notification.objects.get_or_create(
+            producer=product.producer,
+            product=product,
+            defaults={
+                "message": f"Low Stock Alert: {product.name} - Only {product.stock} remaining"
+            }
+        )
+    else:
+        Notification.objects.filter(producer=product.producer, product=product).delete()
+
+
+def can_review_product(user, product):
+    if not user.is_authenticated or not getattr(user, "is_customer", False):
+        return False
+
+    return OrderItem.objects.filter(
+        order__customer=user,
+        order__status="delivered",
+        product=product
+    ).exists()
+
+
+def has_existing_review(user, product):
+    if not user.is_authenticated:
+        return False
+    return Review.objects.filter(customer=user, product=product).exists()
 
 
 def register_producer_view(request):
@@ -122,7 +158,51 @@ def marketplace_view(request):
 
 def product_detail_view(request, pk):
     product = get_object_or_404(Product.objects.select_related("producer"), pk=pk)
-    return render(request, "product_detail.html", {"product": product})
+    reviews = product.reviews.select_related("customer").all()
+
+    user_can_review = can_review_product(request.user, product)
+    already_reviewed = has_existing_review(request.user, product)
+
+    return render(request, "product_detail.html", {
+        "product": product,
+        "reviews": reviews,
+        "user_can_review": user_can_review,
+        "already_reviewed": already_reviewed,
+    })
+
+
+@login_required
+def add_review_view(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+
+    if not request.user.is_customer:
+        messages.error(request, "Only customers can submit reviews.")
+        return redirect("product_detail", pk=product.id)
+
+    if not can_review_product(request.user, product):
+        messages.error(request, "You can only review products from delivered orders.")
+        return redirect("product_detail", pk=product.id)
+
+    if has_existing_review(request.user, product):
+        messages.error(request, "You have already reviewed this product.")
+        return redirect("product_detail", pk=product.id)
+
+    if request.method == "POST":
+        form = ReviewForm(request.POST)
+        if form.is_valid():
+            review = form.save(commit=False)
+            review.product = product
+            review.customer = request.user
+            review.save()
+            messages.success(request, "Review submitted successfully.")
+            return redirect("product_detail", pk=product.id)
+    else:
+        form = ReviewForm()
+
+    return render(request, "add_review.html", {
+        "form": form,
+        "product": product,
+    })
 
 
 @login_required
@@ -243,10 +323,21 @@ def checkout_view(request):
             commission = (subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
             payout = (subtotal * Decimal("0.95")).quantize(Decimal("0.01"))
 
+            payment_method = request.POST.get(f"payment_method_{producer.id}", "card")
+
             for item in producer_items:
                 if item.quantity > item.product.stock:
                     messages.error(request, f"Not enough stock for {item.product.name}.")
                     return redirect("cart")
+
+            if payment_method == "card":
+                card_number = request.POST.get(f"card_number_{producer.id}", "").replace(" ", "")
+                expiry_date = request.POST.get(f"expiry_date_{producer.id}", "")
+                cvv = request.POST.get(f"cvv_{producer.id}", "")
+
+                if card_number != "4242424242424242" or expiry_date != "12/34" or cvv != "123":
+                    messages.error(request, "Invalid test card details.")
+                    return redirect("checkout")
 
             order = Order.objects.create(
                 customer=request.user,
@@ -274,6 +365,7 @@ def checkout_view(request):
 
                 item.product.stock -= item.quantity
                 item.product.save()
+                check_low_stock(item.product)
 
         items.delete()
 
@@ -377,7 +469,36 @@ def producer_products_view(request):
         return HttpResponseForbidden()
 
     products = Product.objects.filter(producer=request.user)
-    return render(request, "producer_products.html", {"products": products})
+    unread_notifications_count = Notification.objects.filter(producer=request.user, is_read=False).count()
+
+    return render(request, "producer_products.html", {
+        "products": products,
+        "unread_notifications_count": unread_notifications_count,
+    })
+
+
+@login_required
+def producer_notifications_view(request):
+    if not request.user.is_producer:
+        return HttpResponseForbidden()
+
+    notifications = Notification.objects.filter(producer=request.user).select_related("product")
+    return render(request, "producer_notifications.html", {
+        "notifications": notifications
+    })
+
+
+@login_required
+@require_POST
+def mark_notification_read_view(request, notification_id):
+    if not request.user.is_producer:
+        return HttpResponseForbidden()
+
+    notification = get_object_or_404(Notification, id=notification_id, producer=request.user)
+    notification.is_read = True
+    notification.save()
+
+    return redirect("producer_notifications")
 
 
 @login_required
@@ -444,6 +565,7 @@ def producer_add_product_view(request):
             product = form.save(commit=False)
             product.producer = request.user
             product.save()
+            check_low_stock(product)
             messages.success(request, "Product added successfully.")
             return redirect("producer_products")
     else:
@@ -465,7 +587,8 @@ def producer_edit_product_view(request, pk):
     if request.method == "POST":
         form = ProductForm(request.POST, request.FILES, instance=product)
         if form.is_valid():
-            form.save()
+            product = form.save()
+            check_low_stock(product)
             messages.success(request, "Product updated successfully.")
             return redirect("producer_products")
     else:

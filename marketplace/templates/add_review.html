@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Review {{ product.name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 40px auto;
+        }
+
+        .review-form-container {
+            border: 1px solid #ddd;
+            padding: 25px;
+            border-radius: 8px;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 6px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="review-form-container">
+        <h1>Review {{ product.name }}</h1>
+
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">Submit Review</button>
+        </form>
+
+        <p>
+            <a href="{% url 'product_detail' product.id %}">← Back to Product</a>
+        </p>
+    </div>
+
+</body>
+</html>

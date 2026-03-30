@@ -1,6 +1,7 @@
 from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.db.models import Avg
 
 
 class User(AbstractUser):
@@ -66,6 +67,8 @@ class Product(models.Model):
     )
 
     stock = models.IntegerField(default=0)
+    low_stock_threshold = models.PositiveIntegerField(default=5)
+
     harvest_date = models.DateField(blank=True, null=True)
     image = models.ImageField(upload_to="products/", blank=True, null=True)
     allergens = models.CharField(max_length=255, blank=True, null=True)
@@ -107,6 +110,13 @@ class Product(models.Model):
             return self.seasonal_start_month <= month <= self.seasonal_end_month
 
         return month >= self.seasonal_start_month or month <= self.seasonal_end_month
+
+    def average_rating(self):
+        result = self.reviews.aggregate(avg=Avg("rating"))
+        return result["avg"] or 0
+
+    def review_count(self):
+        return self.reviews.count()
 
 
 class Order(models.Model):
@@ -195,3 +205,43 @@ class CartItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} x {self.quantity}"
+
+
+class Notification(models.Model):
+    producer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+        limit_choices_to={"is_producer": True},
+    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="notifications")
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.product.name} - {self.message}"
+
+
+class Review(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="reviews")
+    customer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="reviews",
+        limit_choices_to={"is_customer": True},
+    )
+    rating = models.PositiveSmallIntegerField()
+    title = models.CharField(max_length=255)
+    comment = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("product", "customer")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.product.name} - {self.rating} stars"
