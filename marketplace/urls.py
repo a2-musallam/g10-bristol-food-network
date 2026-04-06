@@ -30,11 +30,11 @@ urlpatterns = [
     path("producer/orders/", views.producer_orders_view, name="producer_orders"),
     path("producer/orders/<int:order_id>/", views.producer_order_detail_view, name="producer_order_detail"),
     path("producer/orders/<int:order_id>/status/", views.producer_update_order_status_view, name="producer_update_order_status"),
-<<<<<<< HEAD
-    path("producer/finances/", views.producer_finances_view, name="producer_finances"),
-]
-=======
 
+    # remote
+    path("producer/finances/", views.producer_finances_view, name="producer_finances"),
+
+    # Sprint 3
     path("producer/notifications/", views.producer_notifications_view, name="producer_notifications"),
     path(
         "producer/notifications/<int:notification_id>/read/",
@@ -42,4 +42,3 @@ urlpatterns = [
         name="mark_notification_read",
     ),
 ]
->>>>>>> 5172a7a (Sprint 3: Implement TC-023 low stock notifications and TC-024 product reviews with payment options)
