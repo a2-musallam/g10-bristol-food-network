@@ -41,4 +41,9 @@ urlpatterns = [
         views.mark_notification_read_view,
         name="mark_notification_read",
     ),
+    path(
+    "register/community-group/",
+    views.register_community_group_view,
+    name="register_community_group",
+),
 ]

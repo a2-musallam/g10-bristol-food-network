@@ -2,7 +2,7 @@ import csv
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from decimal import Decimal
-
+from .forms import CommunityGroupRegistrationForm
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -18,9 +18,31 @@ from .forms import (
     ProductForm,
     ProducerRegistrationForm,
     ReviewForm,
+    CommunityGroupRegistrationForm,
 )
 from .models import CartItem, Notification, Order, OrderItem, Product, Review, User
+from .forms import CommunityGroupRegistrationForm
 
+def register_community_group_view(request):
+    if request.method == "POST":
+        form = CommunityGroupRegistrationForm(request.POST)
+
+        if form.is_valid():
+            user = form.save()
+
+            messages.success(
+                request,
+                "Community group account created successfully."
+            )
+            return redirect("login")
+    else:
+        form = CommunityGroupRegistrationForm()
+
+    return render(
+        request,
+        "register_community_group.html",
+        {"form": form}
+    )
 
 def check_low_stock(product):
     if product.stock <= product.low_stock_threshold:
@@ -268,115 +290,8 @@ def remove_cart_item(request, item_id):
     return redirect("cart")
 
 
-@login_required
-def checkout_view(request):
-    items = CartItem.objects.filter(
-        customer=request.user
-    ).select_related("product", "product__producer")
 
-    if not items.exists():
-        messages.error(request, "Your cart is empty.")
-        return redirect("cart")
 
-    producer_map = {}
-    for item in items:
-        producer_map.setdefault(item.product.producer, []).append(item)
-
-    grouped_items = []
-    for producer, producer_items in producer_map.items():
-        subtotal = sum(item.subtotal() for item in producer_items)
-        commission = (subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
-        payout = (subtotal * Decimal("0.95")).quantize(Decimal("0.01"))
-
-        grouped_items.append({
-            "producer": producer,
-            "items": producer_items,
-            "subtotal": subtotal,
-            "commission": commission,
-            "payout": payout,
-            "minimum_date": (timezone.now() + timezone.timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M"),
-        })
-
-    total_amount = sum(group["subtotal"] for group in grouped_items)
-
-    if request.method == "POST":
-        created_orders = []
-
-        for producer, producer_items in producer_map.items():
-            delivery_address = request.POST.get(f"address_{producer.id}")
-            delivery_date_raw = request.POST.get(f"date_{producer.id}")
-            special_instructions = request.POST.get(f"instructions_{producer.id}", "")
-
-            if not delivery_address or not delivery_date_raw:
-                messages.error(request, f"Missing delivery info for producer {producer.business_name or producer.username}.")
-                return redirect("checkout")
-
-            delivery_date = timezone.datetime.fromisoformat(delivery_date_raw)
-            if timezone.is_naive(delivery_date):
-                delivery_date = timezone.make_aware(delivery_date, timezone.get_current_timezone())
-
-            if delivery_date <= timezone.now() + timezone.timedelta(hours=48):
-                messages.error(request, "Delivery date must be at least 48 hours from now.")
-                return redirect("checkout")
-
-            subtotal = sum(item.subtotal() for item in producer_items)
-            commission = (subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
-            payout = (subtotal * Decimal("0.95")).quantize(Decimal("0.01"))
-
-            payment_method = request.POST.get(f"payment_method_{producer.id}", "card")
-
-            for item in producer_items:
-                if item.quantity > item.product.stock:
-                    messages.error(request, f"Not enough stock for {item.product.name}.")
-                    return redirect("cart")
-
-            if payment_method == "card":
-                card_number = request.POST.get(f"card_number_{producer.id}", "").replace(" ", "")
-                expiry_date = request.POST.get(f"expiry_date_{producer.id}", "")
-                cvv = request.POST.get(f"cvv_{producer.id}", "")
-
-                if card_number != "4242424242424242" or expiry_date != "12/34" or cvv != "123":
-                    messages.error(request, "Invalid test card details.")
-                    return redirect("checkout")
-
-            order = Order.objects.create(
-                customer=request.user,
-                producer=producer,
-                delivery_address=delivery_address,
-                delivery_date=delivery_date,
-                special_instructions=special_instructions,
-                status="pending",
-                subtotal=subtotal,
-                commission_amount=commission,
-                producer_amount=payout,
-                total_amount=subtotal,
-            )
-
-            created_orders.append(order)
-
-            for item in producer_items:
-                OrderItem.objects.create(
-                    order=order,
-                    product=item.product,
-                    quantity=item.quantity,
-                    unit_price=item.product.price,
-                    subtotal=item.subtotal(),
-                )
-
-                item.product.stock -= item.quantity
-                item.product.save()
-                check_low_stock(item.product)
-
-        items.delete()
-
-        request.session["latest_order_ids"] = [order.id for order in created_orders]
-        messages.success(request, f"{len(created_orders)} order(s) created successfully.")
-        return redirect("order_success")
-
-    return render(request, "checkout.html", {
-        "grouped_items": grouped_items,
-        "total_amount": total_amount,
-    })
 
 
 @login_required
@@ -612,6 +527,194 @@ def producer_delete_product_view(request, pk):
     messages.success(request, "Product deleted successfully.")
     return redirect("producer_products")
 
+@login_required
+def checkout_view(request):
+    items = CartItem.objects.filter(
+        customer=request.user
+    ).select_related("product", "product__producer")
+
+    if not items.exists():
+        messages.error(request, "Your cart is empty.")
+        return redirect("cart")
+
+    producer_map = {}
+    for item in items:
+        producer_map.setdefault(item.product.producer, []).append(item)
+
+    grouped_items = []
+
+    for producer, producer_items in producer_map.items():
+        subtotal = sum(item.subtotal() for item in producer_items)
+
+        discount = Decimal("0.00")
+        if (
+            request.user.is_community_group
+            and request.user.bulk_discount_rate > 0
+            and subtotal >= Decimal("100.00")
+        ):
+            discount = (
+                subtotal * request.user.bulk_discount_rate / Decimal("100")
+            ).quantize(Decimal("0.01"))
+
+        discounted_subtotal = (
+            subtotal - discount
+        ).quantize(Decimal("0.01"))
+
+        commission = (
+            discounted_subtotal * Decimal("0.05")
+        ).quantize(Decimal("0.01"))
+
+        payout = (
+            discounted_subtotal - commission
+        ).quantize(Decimal("0.01"))
+
+        grouped_items.append({
+            "producer": producer,
+            "items": producer_items,
+            "subtotal": subtotal,
+            "discount": discount,
+            "discounted_subtotal": discounted_subtotal,
+            "commission": commission,
+            "payout": payout,
+            "minimum_date": (
+                timezone.now() + timezone.timedelta(hours=48)
+            ).strftime("%Y-%m-%dT%H:%M"),
+        })
+
+    total_amount = sum(
+        group["discounted_subtotal"] for group in grouped_items
+    )
+
+    if request.method == "POST":
+        created_orders = []
+
+        for producer, producer_items in producer_map.items():
+            delivery_address = request.POST.get(f"address_{producer.id}")
+            delivery_date_raw = request.POST.get(f"date_{producer.id}")
+            special_instructions = request.POST.get(
+                f"instructions_{producer.id}", ""
+            )
+
+            if not delivery_address or not delivery_date_raw:
+                messages.error(
+                    request,
+                    f"Missing delivery info for producer {producer.business_name or producer.username}."
+                )
+                return redirect("checkout")
+
+            delivery_date = timezone.datetime.fromisoformat(delivery_date_raw)
+            if timezone.is_naive(delivery_date):
+                delivery_date = timezone.make_aware(
+                    delivery_date,
+                    timezone.get_current_timezone()
+                )
+
+            if delivery_date <= timezone.now() + timezone.timedelta(hours=48):
+                messages.error(
+                    request,
+                    "Delivery date must be at least 48 hours from now."
+                )
+                return redirect("checkout")
+
+            subtotal = sum(item.subtotal() for item in producer_items)
+
+            discount = Decimal("0.00")
+            if (
+                request.user.is_community_group
+                and request.user.bulk_discount_rate > 0
+                and subtotal >= Decimal("100.00")
+            ):
+                discount = (
+                    subtotal * request.user.bulk_discount_rate / Decimal("100")
+                ).quantize(Decimal("0.01"))
+
+            discounted_subtotal = (
+                subtotal - discount
+            ).quantize(Decimal("0.01"))
+
+            commission = (
+                discounted_subtotal * Decimal("0.05")
+            ).quantize(Decimal("0.01"))
+
+            payout = (
+                discounted_subtotal - commission
+            ).quantize(Decimal("0.01"))
+
+            payment_method = request.POST.get(
+                f"payment_method_{producer.id}",
+                "card"
+            )
+
+            for item in producer_items:
+                if item.quantity > item.product.stock:
+                    messages.error(
+                        request,
+                        f"Not enough stock for {item.product.name}."
+                    )
+                    return redirect("cart")
+
+            if payment_method == "card":
+                card_number = request.POST.get(
+                    f"card_number_{producer.id}", ""
+                ).replace(" ", "")
+                expiry_date = request.POST.get(
+                    f"expiry_date_{producer.id}", ""
+                )
+                cvv = request.POST.get(f"cvv_{producer.id}", "")
+
+                if (
+                    card_number != "4242424242424242"
+                    or expiry_date != "12/34"
+                    or cvv != "123"
+                ):
+                    messages.error(request, "Invalid test card details.")
+                    return redirect("checkout")
+
+            order = Order.objects.create(
+                customer=request.user,
+                producer=producer,
+                delivery_address=delivery_address,
+                delivery_date=delivery_date,
+                special_instructions=special_instructions,
+                status="pending",
+                subtotal=subtotal,
+                discount_amount=discount,
+                commission_amount=commission,
+                producer_amount=payout,
+                total_amount=discounted_subtotal,
+            )
+
+            created_orders.append(order)
+
+            for item in producer_items:
+                OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    quantity=item.quantity,
+                    unit_price=item.product.price,
+                    subtotal=item.subtotal(),
+                )
+
+                item.product.stock -= item.quantity
+                item.product.save()
+                check_low_stock(item.product)
+
+        items.delete()
+
+        request.session["latest_order_ids"] = [
+            order.id for order in created_orders
+        ]
+
+        messages.success(
+            request,
+            f"{len(created_orders)} order(s) created successfully."
+        )
+        return redirect("order_success")
+
+    return render(request, "checkout.html", {
+        "grouped_items": grouped_items,
+        "total_amount": total_amount,
+    })
 
 @login_required
 def producer_order_detail_view(request, order_id):
@@ -627,6 +730,7 @@ def producer_order_detail_view(request, order_id):
     return render(request, "producer_order_detail.html", {
         "order": order
     })
+
 
 
 @login_required

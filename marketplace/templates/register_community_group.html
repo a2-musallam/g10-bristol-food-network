@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Community Group Registration</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 650px;
+            margin: 40px auto;
+            background: #f7f7f7;
+            color: #333;
+        }
+
+        .box {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .steps {
+            background: #eef7ff;
+            border: 1px solid #b7d8ff;
+            padding: 16px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            line-height: 1.7;
+        }
+
+        .steps strong {
+            display: block;
+            margin-bottom: 10px;
+            color: #1c4d7c;
+        }
+
+        form p {
+            margin-bottom: 18px;
+        }
+
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 11px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            margin-bottom: 18px;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .info-box {
+            background: #f5fff1;
+            border: 1px solid #b8e5b0;
+            padding: 14px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        button {
+            width: 100%;
+            padding: 13px;
+            background: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #28b765;
+        }
+
+        .login-link {
+            margin-top: 18px;
+            text-align: center;
+        }
+
+        .login-link a {
+            color: #2c6ed5;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="box">
+
+        <h1>Community Group Registration</h1>
+
+        <p class="subtitle">
+            Register your school, charity or community organisation
+        </p>
+
+ 
+
+        <div class="info-box">
+            Community group accounts may have access to:
+            <ul>
+                <li>Bulk ordering from multiple producers</li>
+                <li>Invoice payment options</li>
+                <li>Community discounts on orders over £100</li>
+                <li>Special handling for schools, charities and educational organisations</li>
+            </ul>
+        </div>
+
+        <form method="POST">
+            {% csrf_token %}
+            {{ form.as_p }}
+
+            <button type="submit">
+                Create Community Group Account
+            </button>
+        </form>
+
+        <div class="login-link">
+            Already registered?
+            <a href="{% url 'login' %}">
+                Log in here
+            </a>
+        </div>
+
+    </div>
+
+</body>
+</html>

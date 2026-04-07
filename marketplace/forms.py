@@ -76,10 +76,9 @@ class CustomerRegistrationForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "username", "email", "phone", "address", "password"]
+        fields = ["first_name", "last_name", "email", "phone", "address", "password"]
 
         labels = {
-            "username": "Login Username (No spaces)",
             "address": "Delivery Address and Postcode",
         }
 
@@ -109,6 +108,72 @@ class CustomerRegistrationForm(forms.ModelForm):
     def save(self, commit=True):
         user = super().save(commit=False)
         user.set_password(self.cleaned_data["password"])
+
+        if commit:
+            user.save()
+
+        return user
+
+class CommunityGroupRegistrationForm(forms.ModelForm):
+    password = forms.CharField(widget=forms.PasswordInput)
+    confirm_password = forms.CharField(widget=forms.PasswordInput)
+
+    class Meta:
+        model = User
+        fields = [
+            "business_name",
+            "email",
+            "phone",
+            "password",
+            "confirm_password",
+        ]
+
+        labels = {
+            "business_name": "Community Group Name",
+            "email": "Institutional Email Address",
+            "phone": "Contact Number",
+        }
+
+        widgets = {
+            "business_name": forms.TextInput(attrs={
+                "placeholder": "e.g. St. Mary's School"
+            }),
+            "email": forms.EmailInput(attrs={
+                "placeholder": "e.g. catering@stmarys-school.org.uk"
+            }),
+            "phone": forms.TextInput(attrs={
+                "placeholder": "e.g. 0117 123 4567"
+            }),
+        }
+
+    def clean_password(self):
+        password = self.cleaned_data.get("password")
+
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            raise forms.ValidationError(e.messages)
+
+        return password
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if cleaned_data.get("password") != cleaned_data.get("confirm_password"):
+            raise forms.ValidationError("Passwords do not match!")
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+
+        user.username = self.cleaned_data["email"]
+        user.set_password(self.cleaned_data["password"])
+
+        user.is_customer = True
+        user.is_community_group = True
+        user.invoice_payment_enabled = True
+        user.bulk_discount_rate = 10
 
         if commit:
             user.save()

@@ -14,6 +14,26 @@ class User(AbstractUser):
     address = models.TextField(blank=True, null=True)
     business_name = models.CharField(max_length=255, blank=True, null=True)
 
+    # TC-017: Community Group specific features
+    is_charity_or_education = models.BooleanField(default=False)
+
+    invoice_payment_enabled = models.BooleanField(
+        default=True
+    )
+
+    bulk_discount_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("10.00"),
+        help_text="Percentage discount available for approved community group accounts."
+    )
+
+    def community_discount_multiplier(self):
+        return (
+            Decimal("1.00") -
+            (self.bulk_discount_rate / Decimal("100"))
+        )
+
     def __str__(self):
         return self.username
 
@@ -55,7 +75,11 @@ class Product(models.Model):
     )
 
     name = models.CharField(max_length=200)
-    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default="veg")
+    category = models.CharField(
+        max_length=30,
+        choices=CATEGORY_CHOICES,
+        default="veg"
+    )
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     unit = models.CharField(max_length=50, default="Each")
@@ -97,8 +121,10 @@ class Product(models.Model):
     def is_currently_in_season(self, month=None):
         if self.availability == "year_round":
             return True
+
         if self.availability == "unavailable":
             return False
+
         if not self.seasonal_start_month or not self.seasonal_end_month:
             return True
 
@@ -109,7 +135,10 @@ class Product(models.Model):
         if self.seasonal_start_month <= self.seasonal_end_month:
             return self.seasonal_start_month <= month <= self.seasonal_end_month
 
-        return month >= self.seasonal_start_month or month <= self.seasonal_end_month
+        return (
+            month >= self.seasonal_start_month
+            or month <= self.seasonal_end_month
+        )
 
     def average_rating(self):
         result = self.reviews.aggregate(avg=Avg("rating"))
@@ -156,6 +185,13 @@ class Order(models.Model):
     status_note = models.CharField(max_length=255, blank=True, null=True)
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    discount_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00")
+    )
+
     commission_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     producer_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -163,11 +199,23 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def calculate_discount(self):
+        if self.customer.is_community_group and self.customer.bulk_discount_rate > 0:
+            return (
+                self.subtotal * self.customer.bulk_discount_rate / Decimal("100")
+            ).quantize(Decimal("0.01"))
+
+        return Decimal("0.00")
+
     def calculate_commission(self):
-        return (self.subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
+        return (
+            self.subtotal * Decimal("0.05")
+        ).quantize(Decimal("0.01"))
 
     def calculate_producer_amount(self):
-        return (self.subtotal * Decimal("0.95")).quantize(Decimal("0.01"))
+        return (
+            self.subtotal - self.discount_amount - self.commission_amount
+        ).quantize(Decimal("0.01"))
 
     def next_allowed_statuses(self):
         flow = {
@@ -184,7 +232,11 @@ class Order(models.Model):
 
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="items"
+    )
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
 
     quantity = models.PositiveIntegerField(default=1)
@@ -214,7 +266,13 @@ class Notification(models.Model):
         related_name="notifications",
         limit_choices_to={"is_producer": True},
     )
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="notifications")
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="notifications"
+    )
+
     message = models.TextField()
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -227,13 +285,19 @@ class Notification(models.Model):
 
 
 class Review(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="reviews")
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="reviews"
+    )
+
     customer = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name="reviews",
         limit_choices_to={"is_customer": True},
     )
+
     rating = models.PositiveSmallIntegerField()
     title = models.CharField(max_length=255)
     comment = models.TextField()

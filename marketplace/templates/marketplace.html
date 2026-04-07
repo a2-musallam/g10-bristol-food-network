@@ -22,7 +22,7 @@
 
     <div class="topbar-right">
       {% if user.is_authenticated %}
-        <strong>Hello, {{ user.username }}</strong>
+        <strong>Hello, {{ request.user.first_name|default:request.user.business_name }}</strong>
 
         {% if user.is_customer %}
           <a href="{% url 'cart' %}">Cart</a>
