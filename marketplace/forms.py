@@ -2,8 +2,13 @@ from django import forms
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-
-from .models import Product, Review, User
+from .models import (
+    Product,
+    Review,
+    User,
+    Recipe,
+    FarmStory,
+)
 
 
 class ProducerRegistrationForm(forms.ModelForm):
@@ -315,3 +320,32 @@ class ReviewForm(forms.ModelForm):
         if rating < 1 or rating > 5:
             raise forms.ValidationError("Rating must be between 1 and 5.")
         return rating
+class RecipeForm(forms.ModelForm):
+    class Meta:
+        model = Recipe
+        fields = [
+            "title",
+            "description",
+            "ingredients",
+            "instructions",
+            "season",
+            "products",
+            "image",
+        ]
+
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3}),
+            "ingredients": forms.Textarea(attrs={"rows": 5}),
+            "instructions": forms.Textarea(attrs={"rows": 6}),
+            "products": forms.CheckboxSelectMultiple(),
+        }
+
+
+class FarmStoryForm(forms.ModelForm):
+    class Meta:
+        model = FarmStory
+        fields = ["title", "content", "image"]
+
+        widgets = {
+            "content": forms.Textarea(attrs={"rows": 6}),
+        }

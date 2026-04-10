@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Recipe</title>
+</head>
+<body>
+    <h1>Create Recipe</h1>
+
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Publish Recipe</button>
+    </form>
+
+    <p><a href="{% url 'producer_products' %}">← Back</a></p>
+</body>
+</html>

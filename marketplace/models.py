@@ -309,3 +309,54 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.rating} stars"
+class Recipe(models.Model):
+    producer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="recipes",
+        limit_choices_to={"is_producer": True}
+    )
+
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    ingredients = models.TextField()
+    instructions = models.TextField()
+
+    season = models.CharField(
+        max_length=50,
+        choices=[
+            ("spring", "Spring"),
+            ("summer", "Summer"),
+            ("autumn", "Autumn"),
+            ("winter", "Winter"),
+        ]
+    )
+
+    image = models.ImageField(upload_to="recipes/", blank=True, null=True)
+
+    products = models.ManyToManyField(
+        Product,
+        related_name="recipes"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+
+class FarmStory(models.Model):
+    producer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="farm_stories",
+        limit_choices_to={"is_producer": True}
+    )
+
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    image = models.ImageField(upload_to="farm_stories/", blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title

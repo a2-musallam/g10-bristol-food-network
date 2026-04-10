@@ -70,6 +70,22 @@
             border-radius: 6px;
         }
 
+        .recipe-box {
+            margin-top: 25px;
+            padding: 15px;
+            border: 1px solid #b8e5b0;
+            background-color: #f4fff1;
+            border-radius: 6px;
+        }
+
+        .recipe-item {
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid #d5ead0;
+            border-radius: 6px;
+            background: white;
+        }
+
         img {
             max-width: 400px;
             margin-top: 20px;
@@ -152,6 +168,33 @@
                 </form>
             {% endif %}
         </div>
+
+        <!-- TC-020 RECIPE SUGGESTIONS -->
+        {% if product.recipes.all %}
+            <div class="recipe-box">
+                <h2>Recipe Suggestions</h2>
+
+                {% for recipe in product.recipes.all %}
+                    <div class="recipe-item">
+                        <p>
+                            <strong>{{ recipe.title }}</strong>
+                        </p>
+
+                        <p>
+                            Season: {{ recipe.get_season_display }}
+                        </p>
+
+                        {% if recipe.description %}
+                            <p>{{ recipe.description|truncatewords:20 }}</p>
+                        {% endif %}
+
+                        <a href="{% url 'recipe_detail' recipe.id %}">
+                            View Full Recipe
+                        </a>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
 
         <!-- TC-024 REVIEWS -->
         <div class="rating-summary">

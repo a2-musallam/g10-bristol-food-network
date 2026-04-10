@@ -13,16 +13,15 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .forms import (
-    CustomerRegistrationForm,
-    LoginForm,
-    ProductForm,
     ProducerRegistrationForm,
+    CustomerRegistrationForm,
+    CheckoutForm,
     ReviewForm,
     CommunityGroupRegistrationForm,
+    RecipeForm,
 )
-from .models import CartItem, Notification, Order, OrderItem, Product, Review, User
-from .forms import CommunityGroupRegistrationForm
-
+from .models import CartItem, Notification, Order, OrderItem, Product, Review, User, Recipe
+from .forms import CustomerRegistrationForm, ProductForm, LoginForm
 def register_community_group_view(request):
     if request.method == "POST":
         form = CommunityGroupRegistrationForm(request.POST)
@@ -812,3 +811,57 @@ def producer_finances_view(request):
         "ytd_total": ytd_total,
         "current_year": current_year
     })
+
+
+@login_required
+def create_recipe_view(request):
+    if not request.user.is_producer:
+        return redirect("marketplace")
+
+    if request.method == "POST":
+        form = RecipeForm(request.POST, request.FILES)
+
+        if form.is_valid():
+            recipe = form.save(commit=False)
+            recipe.producer = request.user
+            recipe.save()
+            form.save_m2m()
+
+            return redirect("producer_products")
+    else:
+        form = RecipeForm()
+
+    return render(request, "recipe_form.html", {
+        "form": form
+    })
+
+@login_required
+def create_farm_story_view(request):
+    if not request.user.is_producer:
+        return HttpResponseForbidden()
+
+    if request.method == "POST":
+        form = FarmStoryForm(request.POST, request.FILES)
+
+        if form.is_valid():
+            story = form.save(commit=False)
+            story.producer = request.user
+            story.save()
+
+            messages.success(request, "Farm story published successfully.")
+            return redirect("producer_dashboard")
+    else:
+        form = FarmStoryForm()
+
+    return render(request, "create_farm_story.html", {"form": form})
+
+
+def recipe_detail_view(request, recipe_id):
+    recipe = get_object_or_404(Recipe, id=recipe_id)
+    return render(request, "recipe_detail.html", {"recipe": recipe})
+@login_required
+def producer_dashboard_view(request):
+    if not request.user.is_producer:
+        return redirect("marketplace")
+
+    return render(request, "producer_dashboard.html")

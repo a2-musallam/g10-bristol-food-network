@@ -5,7 +5,7 @@ urlpatterns = [
     path("", views.marketplace_view, name="marketplace"),
     path("products/<int:pk>/", views.product_detail_view, name="product_detail"),
     path("products/<int:product_id>/review/", views.add_review_view, name="add_review"),
-
+    path("producer/dashboard/", views.producer_dashboard_view, name="producer_dashboard"),
     path("cart/", views.cart_view, name="cart"),
     path("cart/add/<int:product_id>/", views.add_to_cart, name="add_to_cart"),
     path("cart/update/<int:item_id>/", views.update_cart_item, name="update_cart"),
@@ -30,7 +30,9 @@ urlpatterns = [
     path("producer/orders/", views.producer_orders_view, name="producer_orders"),
     path("producer/orders/<int:order_id>/", views.producer_order_detail_view, name="producer_order_detail"),
     path("producer/orders/<int:order_id>/status/", views.producer_update_order_status_view, name="producer_update_order_status"),
-
+    path("producer/recipes/new/", views.create_recipe_view, name="create_recipe"),
+    path("producer/farm-stories/new/", views.create_farm_story_view, name="create_farm_story"),
+    path("recipes/<int:recipe_id>/", views.recipe_detail_view, name="recipe_detail"),
     # remote
     path("producer/finances/", views.producer_finances_view, name="producer_finances"),
 

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Producer Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            background: #f7f7f7;
+        }
+
+        .box {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .dashboard-section {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 12px 18px;
+            background: #2ecc71;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+        }
+
+        .btn:hover {
+            background: #27ae60;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="box">
+        <h1>Producer Dashboard</h1>
+        <p>Welcome {{ request.user.name|default:request.user.email }}</p>
+    </div>
+
+    <div class="dashboard-section">
+        <h2>Content / Farm Stories</h2>
+        <p>Share recipes, seasonal tips and stories about your farm.</p>
+
+        <a href="{% url 'create_recipe' %}" class="btn">
+            Add New Recipe
+        </a>
+    </div>
+
+</body>
+</html>
