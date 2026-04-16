@@ -43,8 +43,12 @@
 
         <p><strong>Items:</strong></p>
         {% for item in order.items.all %}
-            <div>
+            <div style="margin-bottom: 8px;">
                 • {{ item.product.name }} (x{{ item.quantity }}) — £{{ item.subtotal }}
+
+                {% if order.status == "delivered" or order.get_status_display == "Delivered" %}
+                    | <a href="{% url 'add_review' item.product.id %}">Leave Review</a>
+                {% endif %}
             </div>
         {% empty %}
             <p>No items in this order.</p>

@@ -2,7 +2,7 @@ import csv
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from decimal import Decimal
-from .forms import CommunityGroupRegistrationForm
+
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -19,16 +19,28 @@ from .forms import (
     ReviewForm,
     CommunityGroupRegistrationForm,
     RecipeForm,
+    ProductForm,
+    LoginForm,
 )
-from .models import CartItem, Notification, Order, OrderItem, Product, Review, User, Recipe
-from .forms import CustomerRegistrationForm, ProductForm, LoginForm
+from .models import (
+    CartItem,
+    Notification,
+    Order,
+    OrderItem,
+    Product,
+    Review,
+    User,
+    Recipe,
+    FarmStory,
+)
+
+
 def register_community_group_view(request):
     if request.method == "POST":
         form = CommunityGroupRegistrationForm(request.POST)
 
         if form.is_valid():
-            user = form.save()
-
+            form.save()
             messages.success(
                 request,
                 "Community group account created successfully."
@@ -43,17 +55,27 @@ def register_community_group_view(request):
         {"form": form}
     )
 
+
 def check_low_stock(product):
     if product.stock <= product.low_stock_threshold:
-        Notification.objects.get_or_create(
+        notification, created = Notification.objects.get_or_create(
             producer=product.producer,
             product=product,
+            is_read=False,
             defaults={
                 "message": f"Low Stock Alert: {product.name} - Only {product.stock} remaining"
             }
         )
+
+        if not created:
+            notification.message = f"Low Stock Alert: {product.name} - Only {product.stock} remaining"
+            notification.is_read = False
+            notification.save()
     else:
-        Notification.objects.filter(producer=product.producer, product=product).delete()
+        Notification.objects.filter(
+            producer=product.producer,
+            product=product
+        ).delete()
 
 
 def can_review_product(user, product):
@@ -70,6 +92,7 @@ def can_review_product(user, product):
 def has_existing_review(user, product):
     if not user.is_authenticated:
         return False
+
     return Review.objects.filter(customer=user, product=product).exists()
 
 
@@ -87,6 +110,7 @@ def register_producer_view(request):
             return redirect("login")
     else:
         form = ProducerRegistrationForm()
+
     return render(request, "register_producer.html", {"form": form})
 
 
@@ -97,10 +121,14 @@ def register_customer_view(request):
             user = form.save(commit=False)
             user.is_customer = True
             user.save()
-            messages.success(request, "Customer account created successfully! You can now log in.")
+            messages.success(
+                request,
+                "Customer account created successfully! You can now log in."
+            )
             return redirect("login")
     else:
         form = CustomerRegistrationForm()
+
     return render(request, "register_customer.html", {"form": form})
 
 
@@ -110,11 +138,16 @@ def login_view(request):
         if form.is_valid():
             entered_email = form.cleaned_data["username"].strip()
             password = form.cleaned_data["password"]
+
             user_obj = User.objects.filter(email__iexact=entered_email).first()
             user = None
 
             if user_obj:
-                user = authenticate(request, username=user_obj.username, password=password)
+                user = authenticate(
+                    request,
+                    username=user_obj.username,
+                    password=password
+                )
 
             if user is not None:
                 login(request, user)
@@ -140,7 +173,12 @@ def logout_view(request):
 
 
 def _marketplace_products_queryset():
-    products = Product.objects.select_related("producer").filter(stock__gt=0).exclude(availability="unavailable")
+    products = (
+        Product.objects.select_related("producer")
+        .filter(stock__gt=0)
+        .exclude(availability="unavailable")
+    )
+
     current_month = timezone.now().month
 
     visible_ids = [
@@ -253,7 +291,10 @@ def add_to_cart(request, product_id):
 
 @login_required
 def cart_view(request):
-    items = CartItem.objects.filter(customer=request.user).select_related("product", "product__producer")
+    items = CartItem.objects.filter(customer=request.user).select_related(
+        "product",
+        "product__producer"
+    )
     total = sum(item.subtotal() for item in items)
 
     return render(request, "cart.html", {
@@ -287,10 +328,6 @@ def remove_cart_item(request, item_id):
     cart_item = get_object_or_404(CartItem, id=item_id, customer=request.user)
     cart_item.delete()
     return redirect("cart")
-
-
-
-
 
 
 @login_required
@@ -383,7 +420,10 @@ def producer_products_view(request):
         return HttpResponseForbidden()
 
     products = Product.objects.filter(producer=request.user)
-    unread_notifications_count = Notification.objects.filter(producer=request.user, is_read=False).count()
+    unread_notifications_count = Notification.objects.filter(
+        producer=request.user,
+        is_read=False
+    ).count()
 
     return render(request, "producer_products.html", {
         "products": products,
@@ -396,7 +436,13 @@ def producer_notifications_view(request):
     if not request.user.is_producer:
         return HttpResponseForbidden()
 
-    notifications = Notification.objects.filter(producer=request.user).select_related("product")
+    notifications = (
+        Notification.objects
+        .filter(producer=request.user)
+        .select_related("product")
+        .order_by("-created_at")
+    )
+
     return render(request, "producer_notifications.html", {
         "notifications": notifications
     })
@@ -408,7 +454,11 @@ def mark_notification_read_view(request, notification_id):
     if not request.user.is_producer:
         return HttpResponseForbidden()
 
-    notification = get_object_or_404(Notification, id=notification_id, producer=request.user)
+    notification = get_object_or_404(
+        Notification,
+        id=notification_id,
+        producer=request.user
+    )
     notification.is_read = True
     notification.save()
 
@@ -526,6 +576,7 @@ def producer_delete_product_view(request, pk):
     messages.success(request, "Product deleted successfully.")
     return redirect("producer_products")
 
+
 @login_required
 def checkout_view(request):
     items = CartItem.objects.filter(
@@ -580,9 +631,7 @@ def checkout_view(request):
             ).strftime("%Y-%m-%dT%H:%M"),
         })
 
-    total_amount = sum(
-        group["discounted_subtotal"] for group in grouped_items
-    )
+    total_amount = sum(group["discounted_subtotal"] for group in grouped_items)
 
     if request.method == "POST":
         created_orders = []
@@ -590,9 +639,7 @@ def checkout_view(request):
         for producer, producer_items in producer_map.items():
             delivery_address = request.POST.get(f"address_{producer.id}")
             delivery_date_raw = request.POST.get(f"date_{producer.id}")
-            special_instructions = request.POST.get(
-                f"instructions_{producer.id}", ""
-            )
+            special_instructions = request.POST.get(f"instructions_{producer.id}", "")
 
             if not delivery_address or not delivery_date_raw:
                 messages.error(
@@ -654,10 +701,12 @@ def checkout_view(request):
 
             if payment_method == "card":
                 card_number = request.POST.get(
-                    f"card_number_{producer.id}", ""
+                    f"card_number_{producer.id}",
+                    ""
                 ).replace(" ", "")
                 expiry_date = request.POST.get(
-                    f"expiry_date_{producer.id}", ""
+                    f"expiry_date_{producer.id}",
+                    ""
                 )
                 cvv = request.POST.get(f"cvv_{producer.id}", "")
 
@@ -700,9 +749,7 @@ def checkout_view(request):
 
         items.delete()
 
-        request.session["latest_order_ids"] = [
-            order.id for order in created_orders
-        ]
+        request.session["latest_order_ids"] = [order.id for order in created_orders]
 
         messages.success(
             request,
@@ -714,6 +761,7 @@ def checkout_view(request):
         "grouped_items": grouped_items,
         "total_amount": total_amount,
     })
+
 
 @login_required
 def producer_order_detail_view(request, order_id):
@@ -729,7 +777,6 @@ def producer_order_detail_view(request, order_id):
     return render(request, "producer_order_detail.html", {
         "order": order
     })
-
 
 
 @login_required
@@ -750,7 +797,6 @@ def producer_finances_view(request):
         if order.updated_at.year == current_year:
             ytd_total += order.producer_amount
 
-        # Group by week based on delivery timestamp
         week_start = order.updated_at.date() - timedelta(days=order.updated_at.date().weekday())
         week_str = week_start.strftime("%Y-%m-%d")
 
@@ -764,7 +810,7 @@ def producer_finances_view(request):
                 "total_orders_value": Decimal("0.00"),
                 "commission": Decimal("0.00"),
                 "payout": Decimal("0.00"),
-                "orders":[]
+                "orders": []
             }
 
         weekly_data[week_str]["total_orders_value"] += order.total_amount
@@ -772,29 +818,35 @@ def producer_finances_view(request):
         weekly_data[week_str]["payout"] += order.producer_amount
         weekly_data[week_str]["orders"].append(order)
 
-    # Handling CSV download request
     if request.GET.get("download_csv"):
         week = request.GET.get("week")
 
-        # Converting the internal YYYY-MM-DD to day-month-year for the filename
         try:
             week_date = datetime.strptime(week, "%Y-%m-%d")
             filename_date = f"{week_date.day}-{week_date.month}-{week_date.year}"
         except (ValueError, TypeError):
             filename_date = week
 
-        response = HttpResponse(content_type='text/csv; charset=utf-8')
-        response['Content-Disposition'] = f'attachment; filename="settlement_report_{filename_date}.csv"'
-
-        # Added UTF-8 Byte Order Mark (BOM) to fix Excel's Â£ issue
-        response.write('\ufeff')
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="settlement_report_{filename_date}.csv"'
+        response.write("\ufeff")
 
         writer = csv.writer(response)
-        writer.writerow(['Order Number', 'Customer Name', 'Items Sold', 'Date', 'Total Amount', 'Commission', 'Payout'])
+        writer.writerow([
+            "Order Number",
+            "Customer Name",
+            "Items Sold",
+            "Date",
+            "Total Amount",
+            "Commission",
+            "Payout"
+        ])
 
         if week in weekly_data:
             for o in weekly_data[week]["orders"]:
-                items_sold = ", ".join([f"{item.product.name} (x{item.quantity})" for item in o.items.all()])
+                items_sold = ", ".join(
+                    [f"{item.product.name} (x{item.quantity})" for item in o.items.all()]
+                )
                 writer.writerow([
                     o.id,
                     o.customer.get_full_name() or o.customer.username,
@@ -826,7 +878,6 @@ def create_recipe_view(request):
             recipe.producer = request.user
             recipe.save()
             form.save_m2m()
-
             return redirect("producer_products")
     else:
         form = RecipeForm()
@@ -834,6 +885,7 @@ def create_recipe_view(request):
     return render(request, "recipe_form.html", {
         "form": form
     })
+
 
 @login_required
 def create_farm_story_view(request):
@@ -859,6 +911,8 @@ def create_farm_story_view(request):
 def recipe_detail_view(request, recipe_id):
     recipe = get_object_or_404(Recipe, id=recipe_id)
     return render(request, "recipe_detail.html", {"recipe": recipe})
+
+
 @login_required
 def producer_dashboard_view(request):
     if not request.user.is_producer:
