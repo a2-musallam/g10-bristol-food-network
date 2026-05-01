@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 
-SECRET_KEY = 'django-insecure-test-key'
+
 
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 DEBUG = True
