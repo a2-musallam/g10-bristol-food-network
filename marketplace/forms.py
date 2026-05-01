@@ -9,6 +9,12 @@ from .models import (
     Recipe,
     FarmStory,
 )
+from .models import FarmStory
+
+class FarmStoryForm(forms.ModelForm):
+    class Meta:
+        model = FarmStory
+        fields = ["title", "content", "image"]
 
 
 class ProducerRegistrationForm(forms.ModelForm):
@@ -341,11 +347,3 @@ class RecipeForm(forms.ModelForm):
         }
 
 
-class FarmStoryForm(forms.ModelForm):
-    class Meta:
-        model = FarmStory
-        fields = ["title", "content", "image"]
-
-        widgets = {
-            "content": forms.Textarea(attrs={"rows": 6}),
-        }

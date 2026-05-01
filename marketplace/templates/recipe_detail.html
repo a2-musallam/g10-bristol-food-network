@@ -2,68 +2,25 @@
 <html>
 <head>
     <title>{{ recipe.title }}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 40px auto;
-            background: #f7f7f7;
-        }
-
-        .box {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-            border: 1px solid #ddd;
-        }
-
-        h1 {
-            margin-top: 0;
-        }
-
-        .section {
-            margin-top: 25px;
-        }
-
-        pre {
-            white-space: pre-wrap;
-            font-family: Arial, sans-serif;
-        }
-
-        img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-top: 15px;
-        }
-    </style>
 </head>
 <body>
-
-<div class="box">
     <h1>{{ recipe.title }}</h1>
+
+    {% if recipe.image %}
+        <img src="{{ recipe.image.url }}" width="400">
+    {% endif %}
 
     <p><strong>Season:</strong> {{ recipe.get_season_display }}</p>
 
-    {% if recipe.image %}
-        <img src="{{ recipe.image.url }}" alt="{{ recipe.title }}">
-    {% endif %}
+    <h2>Description</h2>
+    <p>{{ recipe.description }}</p>
 
-    <div class="section">
-        <h3>Ingredients</h3>
-        <pre>{{ recipe.ingredients }}</pre>
-    </div>
+    <h2>Ingredients</h2>
+    <p>{{ recipe.ingredients|linebreaks }}</p>
 
-    <div class="section">
-        <h3>Cooking Instructions</h3>
-        <pre>{{ recipe.instructions }}</pre>
-    </div>
+    <h2>Instructions</h2>
+    <p>{{ recipe.instructions|linebreaks }}</p>
 
-    <p style="margin-top: 30px;">
-        <a href="{% url 'product_detail' recipe.products.first.id %}">
-            ← Back to Product
-        </a>
-    </p>
-</div>
-
+    <p><a href="javascript:history.back()">← Back</a></p>
 </body>
 </html>

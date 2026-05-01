@@ -3,3 +3,4 @@ djangorestframework
 psycopg[binary]
 python-dotenv
 Pillow>=10.0.0
+stripe

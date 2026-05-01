@@ -32,7 +32,7 @@
         <p><strong>Producer:</strong> {{ order.producer.business_name|default:order.producer.username }}</p>
         <p><strong>Status:</strong> {{ order.status }}</p>
         <p><strong>Delivery Address:</strong> {{ order.delivery_address }}</p>
-        <p><strong>Delivery Date:</strong> {{ order.delivery_date }}</p>
+        <p><strong>Delivery Date:</strong> {{ order.delivery_date|date:"d M Y, H:i" }}</p>
         <p><strong>Total:</strong> £{{ order.total_amount }}</p>
 
         <p><strong>Items:</strong></p>

@@ -2,7 +2,7 @@ import csv
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from decimal import Decimal
-
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -21,6 +21,7 @@ from .forms import (
     RecipeForm,
     ProductForm,
     LoginForm,
+    FarmStoryForm,
 )
 from .models import (
     CartItem,
@@ -33,6 +34,142 @@ from .models import (
     Recipe,
     FarmStory,
 )
+import stripe
+from django.conf import settings
+from django.shortcuts import redirect
+from .models import CartItem
+from .models import FarmStory
+
+@login_required
+def create_farm_story_view(request):
+    if not request.user.is_producer:
+        return HttpResponseForbidden()
+
+    if request.method == "POST":
+        form = FarmStoryForm(request.POST, request.FILES)
+        if form.is_valid():
+            story = form.save(commit=False)
+            story.producer = request.user
+            story.save()
+            return redirect("farm_stories")
+    else:
+        form = FarmStoryForm()
+
+    return render(request, "create_farm_story.html", {
+        "form": form
+    })
+def farm_stories_view(request):
+    stories = FarmStory.objects.select_related("producer").order_by("-created_at")
+
+    return render(request, "farm_stories.html", {
+        "stories": stories
+    })
+@login_required
+def edit_farm_story_view(request, pk):
+    story = get_object_or_404(FarmStory, pk=pk)
+
+    if story.producer != request.user:
+        return HttpResponseForbidden()
+
+    if request.method == "POST":
+        form = FarmStoryForm(request.POST, request.FILES, instance=story)
+        if form.is_valid():
+            form.save()
+            return redirect("farm_stories")
+    else:
+        form = FarmStoryForm(instance=story)
+
+    return render(request, "create_farm_story.html", {
+        "form": form
+    })
+@login_required
+def delete_farm_story_view(request, pk):
+    story = get_object_or_404(FarmStory, pk=pk)
+
+    if story.producer != request.user:
+        return HttpResponseForbidden()
+
+    story.delete()
+    return redirect("farm_stories")
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+@login_required
+
+@login_required
+def create_checkout_session(request):
+    import stripe
+    from decimal import Decimal
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    checkout_data = request.session.get("checkout_data")
+
+    if not checkout_data:
+        return redirect("cart")
+
+    line_items = []
+    subtotal = Decimal("0.00")
+
+    
+    for group in checkout_data["groups"]:
+        producer_id = group["producer_id"]
+
+        items = CartItem.objects.filter(
+            customer=request.user,
+            product__producer_id=producer_id
+        ).select_related("product")
+
+        for item in items:
+            item_total = item.product.price * item.quantity
+            subtotal += item_total
+
+            line_items.append({
+                "price_data": {
+                    "currency": "gbp",
+                    "product_data": {
+                        "name": item.product.name,
+                    },
+                    "unit_amount": int(item.product.price * 100),  # ❗ ORİJİNAL FİYAT
+                },
+                "quantity": item.quantity,
+            })
+
+    
+    discount_amount = Decimal("0.00")
+
+    if (
+        request.user.is_community_group
+        and request.user.bulk_discount_rate > 0
+        and subtotal >= Decimal("100.00")
+    ):
+        discount_amount = (
+            subtotal * request.user.bulk_discount_rate / Decimal("100")
+        ).quantize(Decimal("0.01"))
+
+    session_data = {
+        "payment_method_types": ["card"],
+        "line_items": line_items,
+        "mode": "payment",
+        "success_url": "http://127.0.0.1:8000/order-success/",
+        "cancel_url": "http://127.0.0.1:8000/checkout/",
+    }
+
+    
+    if discount_amount > 0:
+        coupon = stripe.Coupon.create(
+            amount_off=int(discount_amount * 100),
+            currency="gbp",
+            duration="once",
+            name="Community Discount",
+        )
+
+        session_data["discounts"] = [
+            {"coupon": coupon.id}
+        ]
+
+    session = stripe.checkout.Session.create(**session_data)
+
+    return redirect(session.url)
 
 
 def register_community_group_view(request):
@@ -331,16 +468,133 @@ def remove_cart_item(request, item_id):
 
 
 @login_required
-def order_success_view(request):
-    order_ids = request.session.get("latest_order_ids", [])
 
-    orders = Order.objects.filter(
-        customer=request.user,
-        id__in=order_ids
-    ).order_by("-id")
+def order_success_view(request):
+
+    checkout_data = request.session.get("checkout_data")
+
+    if not checkout_data:
+
+        return render(request, "order_success.html", {
+
+            "orders": []
+
+        })
+
+    created_orders = []
+
+    for group in checkout_data.get("groups", []):
+
+        producer = User.objects.get(id=group["producer_id"])
+
+        
+
+        items = CartItem.objects.filter(
+
+            customer=request.user,
+
+            product__producer=producer
+
+        ).select_related("product")
+
+        if not items.exists():
+
+            continue
+
+        #  SUBTOTAL
+
+        subtotal = sum(item.subtotal() for item in items)
+
+        #  DISCOUNT
+
+        discount = Decimal("0.00")
+
+        if (
+
+            request.user.is_community_group
+
+            and request.user.bulk_discount_rate > 0
+
+            and subtotal >= Decimal("100.00")
+
+        ):
+
+            discount = (
+
+                subtotal * request.user.bulk_discount_rate / Decimal("100")
+
+            ).quantize(Decimal("0.01"))
+
+        total = (subtotal - discount).quantize(Decimal("0.01"))
+
+        #  DATETIME FIX 
+
+        delivery_date = timezone.make_aware(
+
+            timezone.datetime.fromisoformat(group["date"])
+
+        )
+
+        #  ORDER CREATE
+
+        order = Order.objects.create(
+
+            customer=request.user,
+
+            producer=producer,
+
+            delivery_address=group["address"],
+
+            delivery_date=delivery_date,
+
+            status="pending",
+
+            subtotal=subtotal,
+
+            discount_amount=discount,
+
+            total_amount=total,
+
+        )
+
+        #  ORDER ITEMS
+
+        for item in items:
+
+            OrderItem.objects.create(
+
+                order=order,
+
+                product=item.product,
+
+                quantity=item.quantity,
+
+                unit_price=item.product.price,
+
+                subtotal=item.subtotal(),
+
+            )
+
+            #  STOCK UPDATE
+
+            item.product.stock -= item.quantity
+
+            item.product.save()
+
+        created_orders.append(order)
+
+    #  CART CLEAN
+
+    CartItem.objects.filter(customer=request.user).delete()
+
+    # SESSION CLEAN (SAFER)
+
+    request.session.pop("checkout_data", None)
 
     return render(request, "order_success.html", {
-        "orders": orders
+
+        "orders": created_orders
+
     })
 
 
@@ -578,189 +832,137 @@ def producer_delete_product_view(request, pk):
 
 
 @login_required
+
 def checkout_view(request):
+
     items = CartItem.objects.filter(
+
         customer=request.user
+
     ).select_related("product", "product__producer")
 
     if not items.exists():
+
         messages.error(request, "Your cart is empty.")
+
         return redirect("cart")
 
     producer_map = {}
+
     for item in items:
+
         producer_map.setdefault(item.product.producer, []).append(item)
 
     grouped_items = []
 
     for producer, producer_items in producer_map.items():
-        subtotal = sum(item.subtotal() for item in producer_items)
+
+        subtotal = sum(item.product.price * item.quantity for item in producer_items)
 
         discount = Decimal("0.00")
+
         if (
+
             request.user.is_community_group
+
             and request.user.bulk_discount_rate > 0
+
             and subtotal >= Decimal("100.00")
+
         ):
-            discount = (
-                subtotal * request.user.bulk_discount_rate / Decimal("100")
-            ).quantize(Decimal("0.01"))
 
-        discounted_subtotal = (
-            subtotal - discount
-        ).quantize(Decimal("0.01"))
+            discount = subtotal * request.user.bulk_discount_rate / 100
 
-        commission = (
-            discounted_subtotal * Decimal("0.05")
-        ).quantize(Decimal("0.01"))
-
-        payout = (
-            discounted_subtotal - commission
-        ).quantize(Decimal("0.01"))
+        total = subtotal - discount
 
         grouped_items.append({
+
             "producer": producer,
+
             "items": producer_items,
+
             "subtotal": subtotal,
+
             "discount": discount,
-            "discounted_subtotal": discounted_subtotal,
-            "commission": commission,
-            "payout": payout,
+
+            "total": total,
+
             "minimum_date": (
+
                 timezone.now() + timezone.timedelta(hours=48)
+
             ).strftime("%Y-%m-%dT%H:%M"),
+
         })
 
-    total_amount = sum(group["discounted_subtotal"] for group in grouped_items)
+    total_amount = sum(group["total"] for group in grouped_items)
+
+    
 
     if request.method == "POST":
-        created_orders = []
+
+        checkout_data = {
+
+            "groups": [],
+
+            "total": float(total_amount),
+
+        }
 
         for producer, producer_items in producer_map.items():
-            delivery_address = request.POST.get(f"address_{producer.id}")
-            delivery_date_raw = request.POST.get(f"date_{producer.id}")
-            special_instructions = request.POST.get(f"instructions_{producer.id}", "")
 
-            if not delivery_address or not delivery_date_raw:
-                messages.error(
-                    request,
-                    f"Missing delivery info for producer {producer.business_name or producer.username}."
-                )
+            address = request.POST.get(f"address_{producer.id}")
+
+            date = request.POST.get(f"date_{producer.id}")
+
+            if not address or not date:
+
+                messages.error(request, "Fill all delivery fields.")
+
                 return redirect("checkout")
 
-            delivery_date = timezone.datetime.fromisoformat(delivery_date_raw)
-            if timezone.is_naive(delivery_date):
-                delivery_date = timezone.make_aware(
-                    delivery_date,
-                    timezone.get_current_timezone()
-                )
+            checkout_data["groups"].append({
 
-            if delivery_date <= timezone.now() + timezone.timedelta(hours=48):
-                messages.error(
-                    request,
-                    "Delivery date must be at least 48 hours from now."
-                )
-                return redirect("checkout")
+                "producer_id": producer.id,
 
-            subtotal = sum(item.subtotal() for item in producer_items)
+                "address": address,
 
-            discount = Decimal("0.00")
-            if (
-                request.user.is_community_group
-                and request.user.bulk_discount_rate > 0
-                and subtotal >= Decimal("100.00")
-            ):
-                discount = (
-                    subtotal * request.user.bulk_discount_rate / Decimal("100")
-                ).quantize(Decimal("0.01"))
+                "date": date,
 
-            discounted_subtotal = (
-                subtotal - discount
-            ).quantize(Decimal("0.01"))
+                "discount_rate": float(request.user.bulk_discount_rate),
 
-            commission = (
-                discounted_subtotal * Decimal("0.05")
-            ).quantize(Decimal("0.01"))
+               
 
-            payout = (
-                discounted_subtotal - commission
-            ).quantize(Decimal("0.01"))
+                "items": [
 
-            payment_method = request.POST.get(
-                f"payment_method_{producer.id}",
-                "card"
-            )
+                    {
 
-            for item in producer_items:
-                if item.quantity > item.product.stock:
-                    messages.error(
-                        request,
-                        f"Not enough stock for {item.product.name}."
-                    )
-                    return redirect("cart")
+                        "name": item.product.name,
 
-            if payment_method == "card":
-                card_number = request.POST.get(
-                    f"card_number_{producer.id}",
-                    ""
-                ).replace(" ", "")
-                expiry_date = request.POST.get(
-                    f"expiry_date_{producer.id}",
-                    ""
-                )
-                cvv = request.POST.get(f"cvv_{producer.id}", "")
+                        "price": float(item.product.price),
 
-                if (
-                    card_number != "4242424242424242"
-                    or expiry_date != "12/34"
-                    or cvv != "123"
-                ):
-                    messages.error(request, "Invalid test card details.")
-                    return redirect("checkout")
+                        "quantity": item.quantity,
 
-            order = Order.objects.create(
-                customer=request.user,
-                producer=producer,
-                delivery_address=delivery_address,
-                delivery_date=delivery_date,
-                special_instructions=special_instructions,
-                status="pending",
-                subtotal=subtotal,
-                discount_amount=discount,
-                commission_amount=commission,
-                producer_amount=payout,
-                total_amount=discounted_subtotal,
-            )
+                    }
 
-            created_orders.append(order)
+                    for item in producer_items
 
-            for item in producer_items:
-                OrderItem.objects.create(
-                    order=order,
-                    product=item.product,
-                    quantity=item.quantity,
-                    unit_price=item.product.price,
-                    subtotal=item.subtotal(),
-                )
+                ]
 
-                item.product.stock -= item.quantity
-                item.product.save()
-                check_low_stock(item.product)
+            })
 
-        items.delete()
+        request.session["checkout_data"] = checkout_data
 
-        request.session["latest_order_ids"] = [order.id for order in created_orders]
-
-        messages.success(
-            request,
-            f"{len(created_orders)} order(s) created successfully."
-        )
-        return redirect("order_success")
+        return redirect("create_checkout_session")
 
     return render(request, "checkout.html", {
+
         "grouped_items": grouped_items,
+
         "total_amount": total_amount,
+
     })
+
 
 
 @login_required

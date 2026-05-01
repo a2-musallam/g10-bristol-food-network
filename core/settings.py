@@ -1,10 +1,12 @@
 import os
 from pathlib import Path
-
+from django.conf import settings
+from django.conf.urls.static import static
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-test-key'
-
+STRIPE_PUBLIC_KEY = "pk_test_51TSGGaFhamjwMVSLqZCFqCY7tSgqEIVqWGYcozLRsVFBvVfcbZIN77bZuwNimBUffW3qMVcfi3zHhbSwjZbIMtif003QybPbdL"
+STRIPE_SECRET_KEY = "sk_test_51TSGGaFhamjwMVSLaAAFYmG1BV35fyxuwt3xXP2uAT3RmWkd1oQp0DWwTToGMLHPHtGlgyWtgUX0cGIxmejgAhgg004VxVnuak"
 DEBUG = True
 
 ALLOWED_HOSTS = [
@@ -104,3 +106,5 @@ AUTH_USER_MODEL = 'marketplace.User'
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/producer/products/"
 LOGOUT_REDIRECT_URL = "/login/"
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
