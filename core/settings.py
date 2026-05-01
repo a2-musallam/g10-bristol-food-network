@@ -8,7 +8,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-test-key'
 STRIPE_PUBLIC_KEY = "pk_test_51TSGGaFhamjwMVSLqZCFqCY7tSgqEIVqWGYcozLRsVFBvVfcbZIN77bZuwNimBUffW3qMVcfi3zHhbSwjZbIMtif003QybPbdL"
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 DEBUG = True
 
 ALLOWED_HOSTS = [
