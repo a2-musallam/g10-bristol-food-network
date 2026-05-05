@@ -7,12 +7,14 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.contrib import messages
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-
+from .models import RecurringOrder, RecurringOrderItem
 from .forms import (
+    RestaurantRegistrationForm,
     ProducerRegistrationForm,
     CustomerRegistrationForm,
     CheckoutForm,
@@ -39,6 +41,130 @@ from django.conf import settings
 from django.shortcuts import redirect
 from .models import CartItem
 from .models import FarmStory
+
+@login_required
+@login_required
+def notifications_view(request):
+    notifications = request.user.notifications.all()
+
+    return render(request, "notifications.html", {
+        "notifications": notifications
+    })
+
+@login_required
+def update_recurring_item(request, item_id):
+    item = get_object_or_404(RecurringOrderItem, id=item_id)
+
+    if item.recurring_order.user != request.user:
+        return HttpResponseForbidden()
+
+    if request.method == "POST":
+        try:
+            quantity = int(request.POST.get("quantity", 1))
+        except ValueError:
+            messages.error(request, "Invalid quantity.")
+            return redirect("recurring_orders")
+
+        # Quantity must be positive
+        if quantity <= 0:
+            messages.error(request, "Quantity must be at least 1.")
+            return redirect("recurring_orders")
+
+        # Product availability check
+        if item.product.availability == "unavailable":
+            messages.error(request, f"{item.product.name} is currently unavailable.")
+            return redirect("recurring_orders")
+
+        # Stock check (critical)
+        if quantity > item.product.stock:
+            messages.error(
+                request,
+                f"Not enough stock for {item.product.name}. Available: {item.product.stock}"
+            )
+            return redirect("recurring_orders")
+
+        item.quantity = quantity
+        item.save()
+
+        messages.success(request, "Recurring item updated successfully.")
+
+    return redirect("recurring_orders")
+
+@login_required
+def modify_next_order(request, order_id):
+    recurring = get_object_or_404(RecurringOrder, id=order_id, user=request.user)
+
+    if request.method == "POST":
+        new_date = request.POST.get("next_date")
+
+        if new_date:
+            recurring.next_order_date = new_date
+            recurring.save()
+
+    return redirect("recurring_orders")
+
+@login_required
+def cancel_recurring_order(request, order_id):
+    order = get_object_or_404(RecurringOrder, id=order_id, user=request.user)
+    order.is_active = False
+    order.save()
+    return redirect("recurring_orders")
+
+
+@login_required
+def pause_recurring_order(request, order_id):
+    order = get_object_or_404(RecurringOrder, id=order_id, user=request.user)
+    order.is_active = False
+    order.save()
+    return redirect("recurring_orders")
+
+
+@login_required
+def resume_recurring_order(request, order_id):
+    order = get_object_or_404(RecurringOrder, id=order_id, user=request.user)
+    order.is_active = True
+    order.save()
+    return redirect("recurring_orders")
+
+@login_required
+def recurring_orders_view(request):
+    if not request.user.is_restaurant:
+        return HttpResponseForbidden()
+
+    recurring_orders = RecurringOrder.objects.filter(user=request.user)
+
+    #  AUTO GENERATE + NOTIFICATION
+    for recurring in recurring_orders:
+        if recurring.is_active and recurring.next_order_date:
+            
+            
+            if recurring.next_order_date <= timezone.now().date():
+                
+                
+                new_orders = recurring.generate_next_order()
+
+                #  notification
+                messages.success(
+                    request,
+                    f"Recurring order '{recurring.name}' has been processed automatically."
+                )
+
+    return render(request, "recurring_orders.html", {
+        "recurring_orders": recurring_orders
+    })
+
+def register_restaurant_view(request):
+    if request.method == "POST":
+        form = RestaurantRegistrationForm(request.POST)
+
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Restaurant account created successfully.")
+            return redirect("login")
+    else:
+        form = RestaurantRegistrationForm()
+
+    return render(request, "register_restaurant.html", {"form": form})
 
 @login_required
 def create_farm_story_view(request):
@@ -129,7 +255,7 @@ def create_checkout_session(request):
                     "product_data": {
                         "name": item.product.name,
                     },
-                    "unit_amount": int(item.product.price * 100),  # ❗ ORİJİNAL FİYAT
+                    "unit_amount": int(item.product.price * 100),  
                 },
                 "quantity": item.quantity,
             })
@@ -192,11 +318,10 @@ def register_community_group_view(request):
         {"form": form}
     )
 
-
 def check_low_stock(product):
     if product.stock <= product.low_stock_threshold:
         notification, created = Notification.objects.get_or_create(
-            producer=product.producer,
+            user=product.producer,
             product=product,
             is_read=False,
             defaults={
@@ -210,9 +335,10 @@ def check_low_stock(product):
             notification.save()
     else:
         Notification.objects.filter(
-            producer=product.producer,
+            user=product.producer,
             product=product
         ).delete()
+
 
 
 def can_review_product(user, product):
@@ -312,7 +438,6 @@ def logout_view(request):
 def _marketplace_products_queryset():
     products = (
         Product.objects.select_related("producer")
-        .filter(stock__gt=0)
         .exclude(availability="unavailable")
     )
 
@@ -344,11 +469,19 @@ def marketplace_view(request):
             | Q(producer__username__icontains=query)
         )
 
+    # 🔔 NOTIFICATION COUNT
+    unread_notifications_count = 0
+    if request.user.is_authenticated:
+        unread_notifications_count = request.user.notifications.filter(
+            is_read=False
+        ).count()
+
     return render(request, "marketplace.html", {
         "products": products,
         "selected_category": category,
         "search_query": query,
         "categories": Product.CATEGORY_CHOICES,
+        "unread_notifications_count": unread_notifications_count,  #  IMPORTANT
     })
 
 
@@ -468,133 +601,104 @@ def remove_cart_item(request, item_id):
 
 
 @login_required
-
 def order_success_view(request):
-
     checkout_data = request.session.get("checkout_data")
 
     if not checkout_data:
-
         return render(request, "order_success.html", {
-
             "orders": []
-
         })
 
     created_orders = []
 
     for group in checkout_data.get("groups", []):
-
         producer = User.objects.get(id=group["producer_id"])
 
-        
-
         items = CartItem.objects.filter(
-
             customer=request.user,
-
             product__producer=producer
-
         ).select_related("product")
 
         if not items.exists():
-
             continue
 
-        #  SUBTOTAL
-
         subtotal = sum(item.subtotal() for item in items)
-
-        #  DISCOUNT
-
         discount = Decimal("0.00")
 
         if (
-
             request.user.is_community_group
-
             and request.user.bulk_discount_rate > 0
-
             and subtotal >= Decimal("100.00")
-
         ):
-
             discount = (
-
                 subtotal * request.user.bulk_discount_rate / Decimal("100")
-
             ).quantize(Decimal("0.01"))
 
         total = (subtotal - discount).quantize(Decimal("0.01"))
 
-        #  DATETIME FIX 
-
         delivery_date = timezone.make_aware(
-
             timezone.datetime.fromisoformat(group["date"])
-
         )
-
-        #  ORDER CREATE
 
         order = Order.objects.create(
-
             customer=request.user,
-
             producer=producer,
-
             delivery_address=group["address"],
-
             delivery_date=delivery_date,
-
             status="pending",
-
             subtotal=subtotal,
-
             discount_amount=discount,
-
             total_amount=total,
-
         )
 
-        #  ORDER ITEMS
-
         for item in items:
-
             OrderItem.objects.create(
-
                 order=order,
-
                 product=item.product,
-
                 quantity=item.quantity,
-
                 unit_price=item.product.price,
-
                 subtotal=item.subtotal(),
-
             )
 
-            #  STOCK UPDATE
-
             item.product.stock -= item.quantity
-
             item.product.save()
 
         created_orders.append(order)
 
-    #  CART CLEAN
+    # TC-018 recurring order logic
+    if request.user.is_restaurant and checkout_data.get("make_recurring"):
+        recurring_order = RecurringOrder.objects.create(
+            user=request.user,
+            name="Weekly Restaurant Order",
+            frequency="weekly",
+            order_day=checkout_data.get("order_day", "Monday"),
+            delivery_day=checkout_data.get("delivery_day", "Wednesday"),
+            next_order_date=timezone.now().date() + timedelta(days=7),
+        )
+
+        all_items = CartItem.objects.filter(
+            customer=request.user
+        ).select_related("product")
+
+        for cart_item in all_items:
+            RecurringOrderItem.objects.create(
+                recurring_order=recurring_order,
+                product=cart_item.product,
+                quantity=cart_item.quantity,
+            )
+
+        for order in created_orders:
+            order.recurring_order = recurring_order
+            order.save()
+
+        # Optional demo logic: advance next scheduled date
+        recurring_order.generate_next_order()
 
     CartItem.objects.filter(customer=request.user).delete()
-
-    # SESSION CLEAN (SAFER)
-
     request.session.pop("checkout_data", None)
 
     return render(request, "order_success.html", {
-
         "orders": created_orders
-
     })
 
 
@@ -675,7 +779,7 @@ def producer_products_view(request):
 
     products = Product.objects.filter(producer=request.user)
     unread_notifications_count = Notification.objects.filter(
-        producer=request.user,
+        user=request.user,
         is_read=False
     ).count()
 
@@ -692,7 +796,7 @@ def producer_notifications_view(request):
 
     notifications = (
         Notification.objects
-        .filter(producer=request.user)
+        .filter(user=request.user)
         .select_related("product")
         .order_by("-created_at")
     )
@@ -711,7 +815,7 @@ def mark_notification_read_view(request, notification_id):
     notification = get_object_or_404(
         Notification,
         id=notification_id,
-        producer=request.user
+        user=request.user
     )
     notification.is_read = True
     notification.save()
@@ -830,139 +934,90 @@ def producer_delete_product_view(request, pk):
     messages.success(request, "Product deleted successfully.")
     return redirect("producer_products")
 
-
 @login_required
-
 def checkout_view(request):
-
     items = CartItem.objects.filter(
-
         customer=request.user
-
     ).select_related("product", "product__producer")
 
     if not items.exists():
-
         messages.error(request, "Your cart is empty.")
-
         return redirect("cart")
 
     producer_map = {}
 
     for item in items:
-
         producer_map.setdefault(item.product.producer, []).append(item)
 
     grouped_items = []
 
     for producer, producer_items in producer_map.items():
-
         subtotal = sum(item.product.price * item.quantity for item in producer_items)
-
         discount = Decimal("0.00")
 
         if (
-
             request.user.is_community_group
-
             and request.user.bulk_discount_rate > 0
-
             and subtotal >= Decimal("100.00")
-
         ):
-
-            discount = subtotal * request.user.bulk_discount_rate / 100
+            discount = subtotal * request.user.bulk_discount_rate / Decimal("100")
 
         total = subtotal - discount
 
         grouped_items.append({
-
             "producer": producer,
-
             "items": producer_items,
-
             "subtotal": subtotal,
-
             "discount": discount,
-
             "total": total,
-
             "minimum_date": (
-
                 timezone.now() + timezone.timedelta(hours=48)
-
             ).strftime("%Y-%m-%dT%H:%M"),
-
         })
 
     total_amount = sum(group["total"] for group in grouped_items)
 
-    
-
     if request.method == "POST":
-
         checkout_data = {
-
             "groups": [],
-
             "total": float(total_amount),
 
+            # TC-018 recurring order data
+            "make_recurring": bool(request.POST.get("make_recurring")),
+            "order_day": request.POST.get("order_day", "Monday"),
+            "delivery_day": request.POST.get("delivery_day", "Wednesday"),
         }
 
         for producer, producer_items in producer_map.items():
-
             address = request.POST.get(f"address_{producer.id}")
+            date_value = request.POST.get(f"date_{producer.id}")
 
-            date = request.POST.get(f"date_{producer.id}")
-
-            if not address or not date:
-
+            if not address or not date_value:
                 messages.error(request, "Fill all delivery fields.")
-
                 return redirect("checkout")
 
             checkout_data["groups"].append({
-
                 "producer_id": producer.id,
-
                 "address": address,
-
-                "date": date,
-
+                "date": date_value,
                 "discount_rate": float(request.user.bulk_discount_rate),
-
-               
-
                 "items": [
-
                     {
-
                         "name": item.product.name,
-
                         "price": float(item.product.price),
-
                         "quantity": item.quantity,
-
                     }
-
                     for item in producer_items
-
-                ]
-
+                ],
             })
 
         request.session["checkout_data"] = checkout_data
-
         return redirect("create_checkout_session")
 
     return render(request, "checkout.html", {
-
         "grouped_items": grouped_items,
-
         "total_amount": total_amount,
-
     })
-
 
 
 @login_required

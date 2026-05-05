@@ -1,8 +1,16 @@
 from django.urls import path
 from . import views
-
+from .views import notifications_view
 urlpatterns = [
     path("", views.marketplace_view, name="marketplace"),
+    path("register/restaurant/", views.register_restaurant_view, name="register_restaurant"),
+    path("notifications/", notifications_view, name="notifications"),
+    path("recurring/modify/<int:order_id>/", views.modify_next_order, name="modify_recurring"),
+    path("recurring/update-item/<int:item_id>/", views.update_recurring_item, name="update_recurring_item"),
+    path("recurring/cancel/<int:order_id>/", views.cancel_recurring_order, name="cancel_recurring"),
+    path("recurring/pause/<int:order_id>/", views.pause_recurring_order, name="pause_recurring"),
+    path("recurring/resume/<int:order_id>/", views.resume_recurring_order, name="resume_recurring"),
+    path("recurring-orders/", views.recurring_orders_view, name="recurring_orders"),
     path("products/<int:pk>/", views.product_detail_view, name="product_detail"),
     path("products/<int:product_id>/review/", views.add_review_view, name="add_review"),
     path("producer/dashboard/", views.producer_dashboard_view, name="producer_dashboard"),

@@ -47,7 +47,7 @@
             font-weight: bold;
         }
 
-        input, textarea {
+        input, textarea, select {
             width: 100%;
             padding: 10px;
             margin-top: 6px;
@@ -109,11 +109,6 @@
                         Discount: -£{{ group.discount|floatformat:2 }}
                         ({{ request.user.bulk_discount_rate }}%)
                     </p>
-
-                    <p>
-                    
-                  
-                    </p>
                 {% endif %}
             </div>
 
@@ -160,10 +155,42 @@
         </div>
     {% endfor %}
 
+    <!-- 🔥 RECURRING ORDER SECTION -->
+    {% if request.user.is_restaurant %}
+<div class="box">
+    <h3>Recurring Order</h3>
+
+    <label>
+        <input type="checkbox" name="make_recurring">
+        Make this a recurring weekly order
+    </label>
+
+    <br><br>
+
+    <label>Order Day:</label>
+    <select name="order_day">
+        <option value="Monday">Every Monday</option>
+        <option value="Tuesday">Every Tuesday</option>
+        <option value="Wednesday">Every Wednesday</option>
+        <option value="Thursday">Every Thursday</option>
+        <option value="Friday">Every Friday</option>
+    </select>
+
+    <label>Delivery Day:</label>
+    <select name="delivery_day">
+        <option value="Wednesday">Every Wednesday</option>
+        <option value="Thursday">Every Thursday</option>
+        <option value="Friday">Every Friday</option>
+        <option value="Saturday">Every Saturday</option>
+    </select>
+</div>
+{% endif %}
+
     <!-- STRIPE BUTTON -->
     <button type="submit">
         Pay with Card (Stripe)
     </button>
+
 </form>
 
 <p>

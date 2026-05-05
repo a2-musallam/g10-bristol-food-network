@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register as Restaurant</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background: linear-gradient(180deg, #eef2f7, #e3e8ef);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+
+        .card {
+            border: none;
+            border-radius: 20px;
+            padding: 35px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            font-weight: 600;
+        }
+
+        label {
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+        }
+
+        input:focus, textarea:focus {
+            border-color: #28a745;
+            box-shadow: 0 0 0 0.15rem rgba(40,167,69,0.2);
+            outline: none;
+        }
+
+        .btn-success {
+            background: #28a745;
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-weight: 500;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #777;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+
+            <div class="card">
+
+                <h2 class="text-center mb-2">Register as Restaurant</h2>
+
+                <p class="subtitle text-center mb-4">
+                    Create your business account to place recurring orders
+                </p>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label>Restaurant Name</label>
+                        {{ form.business_name }}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Email</label>
+                            {{ form.email }}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label>Phone</label>
+                            {{ form.phone }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label>Address</label>
+                        {{ form.address }}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Password</label>
+                            {{ form.password }}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label>Confirm Password</label>
+                            {{ form.confirm_password }}
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success w-100 mt-2">
+                        Create Restaurant Account
+                    </button>
+
+                </form>
+
+            </div>
+
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

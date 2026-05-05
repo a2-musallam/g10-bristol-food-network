@@ -7,9 +7,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <style>
-    body {
-      background: #f5f7f9;
-    }
+    body { background: #f5f7f9; }
 
     .navbar {
       background: white;
@@ -55,7 +53,7 @@
 </head>
 <body>
 
-<!-- 🔝 NAVBAR -->
+<!-- NAVBAR -->
 <nav class="navbar px-4 py-3 d-flex justify-content-between">
   <h4 class="m-0">Bristol Marketplace</h4>
 
@@ -65,18 +63,37 @@
         Hello, <strong>{{ request.user.first_name|default:request.user.username }}</strong>
       </span>
 
-      <!-- CUSTOMER -->
       {% if user.is_customer %}
+
+        <!-- NOTIFICATIONS -->
+        <a href="{% url 'notifications' %}" class="btn btn-outline-dark btn-sm me-2">
+          🔔 Notifications
+          {% if unread_notifications_count > 0 %}
+            ({{ unread_notifications_count }})
+          {% endif %}
+        </a>
+
         <a href="{% url 'cart' %}" class="btn btn-outline-dark btn-sm me-2">Cart</a>
-        <a href="{% url 'orders' %}" class="btn btn-outline-dark btn-sm me-2">Orders</a>
+
+        <div class="btn-group me-2">
+          <button type="button" class="btn btn-outline-dark btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+            My Orders
+          </button>
+
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'orders' %}">Orders</a></li>
+
+            {% if user.is_restaurant %}
+              <li><a class="dropdown-item" href="{% url 'recurring_orders' %}">Recurring Orders</a></li>
+            {% endif %}
+          </ul>
+        </div>
       {% endif %}
 
-      <!-- PRODUCER -->
       {% if user.is_producer %}
         <a href="{% url 'producer_products' %}" class="btn btn-outline-dark btn-sm me-2">My Products</a>
       {% endif %}
 
-      <!-- COMMON -->
       <a href="{% url 'farm_stories' %}" class="btn btn-outline-success btn-sm me-2">
         🌿 Farm Stories
       </a>
@@ -93,7 +110,7 @@
 
 <div class="container mt-4">
 
-  <!-- 🔍 SEARCH -->
+  <!-- SEARCH -->
   <div class="card p-3 mb-4 shadow-sm">
     <form method="get" class="row g-2">
       <div class="col-md-6">
@@ -119,7 +136,7 @@
     </form>
   </div>
 
-  <!-- 🛒 PRODUCTS -->
+  <!-- PRODUCTS -->
   <div class="row g-4">
 
     {% for p in products %}
@@ -127,7 +144,6 @@
 
       <div class="card product-card shadow-sm p-3 h-100">
 
-        <!-- IMAGE -->
         {% if p.image %}
           <img src="{{ p.image.url }}" class="img-fluid rounded mb-3"
                style="height:200px; object-fit:cover;">
@@ -138,7 +154,6 @@
           </div>
         {% endif %}
 
-        <!-- TITLE -->
         <h5>
           <a href="{% url 'product_detail' p.pk %}"
              class="text-dark text-decoration-none">
@@ -146,29 +161,38 @@
           </a>
         </h5>
 
-        <!-- PRICE -->
         <div class="price">£{{ p.price }} / {{ p.unit }}</div>
 
-        <!-- PRODUCER -->
         <small class="text-muted">
           {{ p.producer.business_name|default:p.producer.username }}
         </small>
 
-        <!-- BADGES -->
         <div class="mt-2">
           <span class="badge badge-soft">{{ p.get_category_display }}</span>
           <span class="badge badge-soft">{{ p.get_availability_display }}</span>
         </div>
 
-        <!-- STOCK -->
-        <small class="text-muted mt-2">Stock: {{ p.stock }}</small>
+        <!-- ✅ STOCK FIX -->
+        {% if p.stock > 0 %}
+          <small class="text-muted mt-2">Stock: {{ p.stock }}</small>
+        {% else %}
+          <small class="text-danger mt-2 fw-bold">Out of Stock</small>
+        {% endif %}
 
-        <!-- BUTTON -->
+        <!-- ✅ BUTTON FIX -->
         <div class="mt-auto pt-3">
           {% if user.is_authenticated and user.is_customer %}
-            <a href="{% url 'add_to_cart' p.id %}" class="btn btn-cart w-100">
-              Add to Cart
-            </a>
+
+            {% if p.stock > 0 %}
+              <a href="{% url 'add_to_cart' p.id %}" class="btn btn-cart w-100">
+                Add to Cart
+              </a>
+            {% else %}
+              <button class="btn btn-secondary w-100" disabled>
+                Out of Stock
+              </button>
+            {% endif %}
+
           {% else %}
             <a href="{% url 'login' %}" class="btn btn-outline-dark w-100">
               Login to buy
@@ -190,6 +214,8 @@
   {% endif %}
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>

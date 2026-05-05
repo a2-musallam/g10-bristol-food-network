@@ -85,9 +85,17 @@ class CustomerRegistrationForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput)
     confirm_password = forms.CharField(widget=forms.PasswordInput)
 
+
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email", "phone", "address", "password"]
+        fields = [
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "address",
+            "password",
+        ]
 
         labels = {
             "address": "Delivery Address and Postcode",
@@ -119,6 +127,65 @@ class CustomerRegistrationForm(forms.ModelForm):
     def save(self, commit=True):
         user = super().save(commit=False)
         user.set_password(self.cleaned_data["password"])
+
+        
+        user.is_customer = True
+
+        
+        if self.cleaned_data.get("is_restaurant"):
+            user.is_restaurant = True
+
+        if commit:
+            user.save()
+
+        return user
+      
+class RestaurantRegistrationForm(forms.ModelForm):
+    password = forms.CharField(widget=forms.PasswordInput)
+    confirm_password = forms.CharField(widget=forms.PasswordInput)
+
+    class Meta:
+        model = User
+        fields = [
+            "business_name",  
+            "email",
+            "phone",
+            "address",
+        ]
+
+        labels = {
+            "business_name": "Restaurant Name",
+            "address": "Restaurant Address and Postcode",
+        }
+
+        widgets = {
+            "address": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("password") != cleaned_data.get("confirm_password"):
+            raise forms.ValidationError("Passwords do not match!")
+        return cleaned_data
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+
+        # 🔥 username = business_name
+        base_username = self.cleaned_data["business_name"].replace(" ", "_").lower()
+        username = base_username
+        counter = 1
+
+        while User.objects.filter(username=username).exists():
+            username = f"{base_username}_{counter}"
+            counter += 1
+
+        user.username = username
+        user.set_password(self.cleaned_data["password"])
+
+        
+        user.is_customer = True
+        user.is_restaurant = True
 
         if commit:
             user.save()

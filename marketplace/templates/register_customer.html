@@ -21,22 +21,26 @@
             box-shadow: 0 15px 40px rgba(0,0,0,0.08);
         }
 
-        h2 {
-            font-weight: 600;
-        }
+        h2 { font-weight: 600; }
 
         .subtitle {
             font-size: 14px;
             color: #777;
         }
 
-        input, textarea, select {
+        label {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        input, textarea {
             border-radius: 10px !important;
             padding: 10px !important;
             border: 1px solid #ddd !important;
+            width: 100%;
         }
 
-        input:focus, textarea:focus, select:focus {
+        input:focus, textarea:focus {
             border-color: #28a745 !important;
             box-shadow: 0 0 0 0.15rem rgba(40,167,69,0.2) !important;
         }
@@ -49,9 +53,7 @@
             font-weight: 500;
         }
 
-        .btn-primary:hover {
-            background: #218838;
-        }
+        .btn-primary:hover { background: #218838; }
 
         .alert-info {
             background: #f0fdf4;
@@ -66,8 +68,21 @@
             font-weight: 500;
         }
 
-        .link:hover {
-            text-decoration: underline;
+        .link:hover { text-decoration: underline; }
+
+        /* 🔥 CLICKABLE CARD */
+        .restaurant-box {
+            background: #fff8e1;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .restaurant-box:hover {
+            background: #ffe0b2;
+            transform: scale(1.01);
         }
     </style>
 </head>
@@ -76,7 +91,6 @@
 
 <div class="container">
     <div class="row justify-content-center">
-
         <div class="col-md-7 col-lg-6">
 
             <div class="card">
@@ -84,19 +98,72 @@
                 <h2 class="text-center mb-2">Create Your Account</h2>
 
                 <p class="subtitle text-center mb-4">
-                    Join Bristol Food Network 
+                    Join Bristol Food Network
                 </p>
 
                 <form method="post">
                     {% csrf_token %}
-                    {{ form.as_p }}
 
-                    <button type="submit" class="btn btn-primary w-100 mb-3">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>First name</label>
+                            {{ form.first_name }}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label>Last name</label>
+                            {{ form.last_name }}
+                        </div>
+
+                        <div class="col-md-6 mt-3">
+                            <label>Email address</label>
+                            {{ form.email }}
+                        </div>
+
+                        <div class="col-md-6 mt-3">
+                            <label>Phone</label>
+                            {{ form.phone }}
+                        </div>
+
+                        <div class="col-12 mt-3">
+                            <label>Delivery Address</label>
+                            {{ form.address }}
+                        </div>
+
+                        <div class="col-md-6 mt-3">
+                            <label>Password</label>
+                            {{ form.password }}
+                        </div>
+
+                        <div class="col-md-6 mt-3">
+                            <label>Confirm Password</label>
+                            {{ form.confirm_password }}
+                        </div>
+                    </div>
+
+                    <!-- 🔥 FULL CLICKABLE RESTAURANT CARD -->
+                    <a href="{% url 'register_restaurant' %}" style="text-decoration:none; color:inherit;">
+                        <div class="restaurant-box mt-4 d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Are you a restaurant owner?</strong>
+                                <br>
+                                <small class="text-muted">
+                                    Restaurant accounts can create recurring weekly orders.
+                                </small>
+                            </div>
+
+                            <span class="fw-bold text-dark">
+                                → Go
+                            </span>
+                        </div>
+                    </a>
+
+                    <button type="submit" class="btn btn-primary w-100 mt-4">
                         Create Account
                     </button>
                 </form>
 
-                <div class="alert alert-info mt-3">
+                <div class="alert alert-info mt-4">
                     <strong>For organisations?</strong>
                     <br>
                     Community group accounts can access bulk ordering, invoice payments and discounts.
@@ -116,7 +183,6 @@
             </div>
 
         </div>
-
     </div>
 </div>
 

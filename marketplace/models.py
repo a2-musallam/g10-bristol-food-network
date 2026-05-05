@@ -2,7 +2,8 @@ from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.db.models import Avg
-
+from datetime import timedelta
+from django.utils import timezone
 
 class User(AbstractUser):
     is_producer = models.BooleanField(default=False)
@@ -148,6 +149,8 @@ class Product(models.Model):
         return self.reviews.count()
 
 
+
+
 class Order(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -196,39 +199,171 @@ class Order(models.Model):
     producer_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
+    
+    recurring_order = models.ForeignKey(
+        "RecurringOrder",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="orders"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def calculate_discount(self):
-        if self.customer.is_community_group and self.customer.bulk_discount_rate > 0:
-            return (
-                self.subtotal * self.customer.bulk_discount_rate / Decimal("100")
-            ).quantize(Decimal("0.01"))
+class RecurringOrder(models.Model):
+    FREQUENCY_CHOICES = [
+        ("weekly", "Weekly"),
+        ("fortnightly", "Fortnightly"),
+    ]
 
-        return Decimal("0.00")
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="recurring_orders"
+    )
 
-    def calculate_commission(self):
-        return (
-            self.subtotal * Decimal("0.05")
-        ).quantize(Decimal("0.01"))
+    name = models.CharField(max_length=255, default="Weekly Order")
 
-    def calculate_producer_amount(self):
-        return (
-            self.subtotal - self.discount_amount - self.commission_amount
-        ).quantize(Decimal("0.01"))
+    frequency = models.CharField(
+        max_length=20,
+        choices=FREQUENCY_CHOICES,
+        default="weekly"
+    )
 
-    def next_allowed_statuses(self):
-        flow = {
-            "pending": ["confirmed", "cancelled"],
-            "confirmed": ["ready", "cancelled"],
-            "ready": ["delivered"],
-            "delivered": [],
-            "cancelled": [],
-        }
-        return flow.get(self.status, [])
+    order_day = models.CharField(max_length=20, default="Monday")
+    delivery_day = models.CharField(max_length=20, default="Wednesday")
+
+    is_active = models.BooleanField(default=True)
+    next_order_date = models.DateField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def generate_next_order(self):
+        """
+        Generate actual Order records from this recurring order template.
+        """
+        if not self.is_active:
+            return []
+
+        created_orders = []
+        unavailable_items = []
+
+        items = self.items.select_related("product", "product__producer")
+        producer_map = {}
+
+        for item in items:
+            product = item.product
+
+            # Skip unavailable or insufficient stock products
+            if (
+                product.stock <= 0
+                or product.stock < item.quantity
+                or product.availability == "unavailable"
+            ):
+                unavailable_items.append(product.name)
+
+                # Producer notification
+                Notification.objects.create(
+                    user=product.producer,
+                    product=product,
+                    message=f"{product.name} is unavailable for recurring order."
+                )
+
+                # Restaurant notification
+                Notification.objects.create(
+                    user=self.user,
+                    product=product,
+                    message=f"{product.name} is currently unavailable and was not included in your recurring order."
+                )
+
+                continue
+
+            producer_map.setdefault(product.producer, []).append(item)
+
+        self._unavailable_items = unavailable_items
+
+        if not producer_map:
+            return []
+
+        # Pre-order notification (restaurant)
+        Notification.objects.create(
+            user=self.user,
+            message=f"Your recurring order '{self.name}' will be processed shortly."
+        )
+
+        for producer, producer_items in producer_map.items():
+            delivery_date = timezone.now() + timedelta(days=2)
+
+            # Lead time check (48 hours)
+            if delivery_date < timezone.now() + timedelta(hours=48):
+                self._lead_time_error = True
+                return []
+
+            order = Order.objects.create(
+    customer=self.user,
+    producer=producer,
+    delivery_address=self.user.address,
+    status="confirmed",  # payment processed simulation
+    delivery_date=delivery_date,
+    recurring_order=self,
+)
+
+            subtotal = Decimal("0.00")
+
+            for item in producer_items:
+                item_subtotal = item.product.price * item.quantity
+
+                OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    quantity=item.quantity,
+                    unit_price=item.product.price,
+                    subtotal=item_subtotal,
+                )
+
+                # Reduce stock
+                item.product.stock -= item.quantity
+                item.product.save()
+
+                subtotal += item_subtotal
+
+            # Financial calculations
+            order.subtotal = subtotal
+            order.total_amount = subtotal
+            order.commission_amount = (subtotal * Decimal("0.05")).quantize(Decimal("0.01"))
+            order.producer_amount = (subtotal - order.commission_amount).quantize(Decimal("0.01"))
+            order.save()
+
+            created_orders.append(order)
+
+        # Update next schedule
+        if self.frequency == "weekly":
+            self.next_order_date += timedelta(days=7)
+        elif self.frequency == "fortnightly":
+            self.next_order_date += timedelta(days=14)
+
+        self.save()
+
+        return created_orders
 
     def __str__(self):
-        return f"Order #{self.id} - {self.customer.username}"
+        return f"{self.user.email} - {self.name}"
+
+
+class RecurringOrderItem(models.Model):
+    recurring_order = models.ForeignKey(
+        RecurringOrder,
+        on_delete=models.CASCADE,
+        related_name="items"
+    )
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+
+    quantity = models.PositiveIntegerField(default=1)
+
+    def __str__(self):
+        return f"{self.product} x {self.quantity}"
 
 
 class OrderItem(models.Model):
@@ -260,17 +395,18 @@ class CartItem(models.Model):
 
 
 class Notification(models.Model):
-    producer = models.ForeignKey(
+    user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name="notifications",
-        limit_choices_to={"is_producer": True},
+        related_name="notifications"
     )
 
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
-        related_name="notifications"
+        related_name="notifications",
+        null=True,
+        blank=True
     )
 
     message = models.TextField()
@@ -281,7 +417,7 @@ class Notification(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.product.name} - {self.message}"
+        return f"{self.user.username} - {self.message}"
 
 
 class Review(models.Model):
@@ -309,6 +445,7 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.rating} stars"
+      
 class Recipe(models.Model):
     producer = models.ForeignKey(
         User,
