@@ -38,6 +38,13 @@
       font-weight: bold;
     }
 
+    .badge-non-organic {
+      background: #e5e7eb;
+      color: #374151;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
     .badge-food {
       background: #f0fdf4;
       color: #166534;
@@ -80,6 +87,7 @@
     }
   </style>
 </head>
+
 <body>
 
 <!-- NAVBAR -->
@@ -93,8 +101,6 @@
       </span>
 
       {% if user.is_customer %}
-
-        <!-- NOTIFICATIONS -->
         <a href="{% url 'notifications' %}" class="btn btn-outline-dark btn-sm me-2">
           🔔 Notifications
           {% if unread_notifications_count > 0 %}
@@ -108,10 +114,8 @@
           <button type="button" class="btn btn-outline-dark btn-sm dropdown-toggle" data-bs-toggle="dropdown">
             My Orders
           </button>
-
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{% url 'orders' %}">Orders</a></li>
-
             {% if user.is_restaurant %}
               <li><a class="dropdown-item" href="{% url 'recurring_orders' %}">Recurring Orders</a></li>
             {% endif %}
@@ -131,9 +135,7 @@
 
       <a href="{% url 'farm_stories' %}" class="btn btn-outline-success btn-sm me-2">🌿 Farm Stories</a>
 
-      <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm">
-        Logout
-      </a>
+      <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm">Logout</a>
 
     {% else %}
       <a href="{% url 'login' %}" class="btn btn-dark btn-sm">Login</a>
@@ -143,11 +145,11 @@
 
 <div class="container mt-4">
 
-  <!-- SEARCH / FILTERS -->
+  <!-- SEARCH + FILTERS -->
   <div class="card p-3 mb-4 shadow-sm">
     <form method="get" class="row g-2 align-items-center">
 
-      <div class="col-md-5">
+      <div class="col-md-4">
         <input type="text"
                name="q"
                value="{{ search_query }}"
@@ -166,19 +168,19 @@
         </select>
       </div>
 
-      <div class="col-md-2">
-        <div class="form-check">
-          <input class="form-check-input"
-                 type="checkbox"
-                 name="organic"
-                 value="true"
-                 id="organicFilter"
-                 {% if organic_only %}checked{% endif %}>
+      <!-- TC-014 ORGANIC FILTER -->
+      <div class="col-md-3">
+        <select name="organic" class="form-select">
+          <option value="">All Products</option>
 
-          <label class="form-check-label" for="organicFilter">
-            🌱 Organic only
-          </label>
-        </div>
+          <option value="true" {% if organic_filter == "true" or organic_only %}selected{% endif %}>
+            🌱 Organic Only
+          </option>
+
+          <option value="false" {% if organic_filter == "false" %}selected{% endif %}>
+            Non-Organic
+          </option>
+        </select>
       </div>
 
       <div class="col-md-2 d-grid">
@@ -187,10 +189,10 @@
 
       <div class="col-12">
         <span class="filter-note">
-          Use the organic filter to show only certified organic products.
+          Use the organic filter to show certified organic or non-organic products.
         </span>
 
-        {% if search_query or selected_category or organic_only %}
+        {% if search_query or selected_category or organic_filter or organic_only %}
           <a href="{% url 'marketplace' %}" class="ms-2">Clear filters</a>
         {% endif %}
       </div>
@@ -216,12 +218,12 @@
         {% endif %}
 
         <h5>
-          <a href="{% url 'product_detail' p.pk %}"
-             class="text-dark text-decoration-none">
+          <a href="{% url 'product_detail' p.pk %}" class="text-dark text-decoration-none">
             {{ p.name }}
           </a>
         </h5>
 
+        <!-- PRICE / SURPLUS -->
         {% if p.is_surplus and p.get_effective_price < p.price %}
           <div class="price">
             <span style="text-decoration: line-through; color: #888;">£{{ p.price }}</span>
@@ -236,12 +238,15 @@
           {{ p.producer.business_name|default:p.producer.username }}
         </small>
 
+        <!-- BADGES -->
         <div class="mt-2">
           <span class="badge badge-soft">{{ p.get_category_display }}</span>
           <span class="badge badge-soft">{{ p.get_availability_display }}</span>
 
           {% if p.is_organic %}
             <span class="badge badge-organic">🌱 Certified Organic</span>
+          {% else %}
+            <span class="badge badge-non-organic">Non-Organic</span>
           {% endif %}
         </div>
 

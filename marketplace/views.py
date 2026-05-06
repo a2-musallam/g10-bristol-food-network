@@ -29,6 +29,7 @@ from .forms import (
     FarmStoryForm,
     SurplusForm,
 )
+
 from .models import (
     CartItem,
     Notification,
@@ -164,7 +165,9 @@ def register_restaurant_view(request):
     else:
         form = RestaurantRegistrationForm()
 
-    return render(request, "register_restaurant.html", {"form": form})
+    return render(request, "register_restaurant.html", {
+        "form": form
+    })
 
 
 @login_required
@@ -174,6 +177,7 @@ def create_farm_story_view(request):
 
     if request.method == "POST":
         form = FarmStoryForm(request.POST, request.FILES)
+
         if form.is_valid():
             story = form.save(commit=False)
             story.producer = request.user
@@ -204,6 +208,7 @@ def edit_farm_story_view(request, pk):
 
     if request.method == "POST":
         form = FarmStoryForm(request.POST, request.FILES, instance=story)
+
         if form.is_valid():
             form.save()
             return redirect("farm_stories")
@@ -228,9 +233,6 @@ def delete_farm_story_view(request, pk):
 
 @login_required
 def create_checkout_session(request):
-    import stripe
-    from decimal import Decimal
-
     stripe.api_key = settings.STRIPE_SECRET_KEY
 
     checkout_data = request.session.get("checkout_data")
@@ -256,7 +258,9 @@ def create_checkout_session(request):
             line_items.append({
                 "price_data": {
                     "currency": "gbp",
-                    "product_data": {"name": item.product.name},
+                    "product_data": {
+                        "name": item.product.name
+                    },
                     "unit_amount": int(item.product.get_effective_price() * 100),
                 },
                 "quantity": item.quantity,
@@ -274,6 +278,7 @@ def create_checkout_session(request):
         ).quantize(Decimal("0.01"))
 
     host = request.get_host()
+
     if host == "localhost" or host == "127.0.0.1":
         host = f"{host}:8000"
 
@@ -298,7 +303,9 @@ def create_checkout_session(request):
         )
 
         session_data["discounts"] = [
-            {"coupon": coupon.id}
+            {
+                "coupon": coupon.id
+            }
         ]
 
     session = stripe.checkout.Session.create(**session_data)
@@ -320,11 +327,9 @@ def register_community_group_view(request):
     else:
         form = CommunityGroupRegistrationForm()
 
-    return render(
-        request,
-        "register_community_group.html",
-        {"form": form}
-    )
+    return render(request, "register_community_group.html", {
+        "form": form
+    })
 
 
 def check_low_stock(product):
@@ -364,48 +369,62 @@ def has_existing_review(user, product):
     if not user.is_authenticated:
         return False
 
-    return Review.objects.filter(customer=user, product=product).exists()
+    return Review.objects.filter(
+        customer=user,
+        product=product
+    ).exists()
 
 
 def register_producer_view(request):
     if request.method == "POST":
         form = ProducerRegistrationForm(request.POST)
+
         if form.is_valid():
             user = form.save(commit=False)
             user.is_producer = True
             user.save()
+
             messages.success(
                 request,
                 f"Welcome {user.business_name}! Account created successfully. You can now log in using your email and password.",
             )
+
             return redirect("login")
     else:
         form = ProducerRegistrationForm()
 
-    return render(request, "register_producer.html", {"form": form})
+    return render(request, "register_producer.html", {
+        "form": form
+    })
 
 
 def register_customer_view(request):
     if request.method == "POST":
         form = CustomerRegistrationForm(request.POST)
+
         if form.is_valid():
             user = form.save(commit=False)
             user.is_customer = True
             user.save()
+
             messages.success(
                 request,
                 "Customer account created successfully! You can now log in."
             )
+
             return redirect("login")
     else:
         form = CustomerRegistrationForm()
 
-    return render(request, "register_customer.html", {"form": form})
+    return render(request, "register_customer.html", {
+        "form": form
+    })
 
 
 def login_view(request):
     if request.method == "POST":
         form = LoginForm(request.POST)
+
         if form.is_valid():
             entered_email = form.cleaned_data["username"].strip()
             password = form.cleaned_data["password"]
@@ -428,13 +447,16 @@ def login_view(request):
 
                 if getattr(user, "is_producer", False):
                     return redirect("producer_products")
+
                 return redirect("marketplace")
 
             messages.error(request, "Invalid email or password.")
     else:
         form = LoginForm()
 
-    return render(request, "login.html", {"form": form})
+    return render(request, "login.html", {
+        "form": form
+    })
 
 
 def logout_view(request):
@@ -457,7 +479,11 @@ def _marketplace_products_queryset():
         if product.is_currently_in_season(current_month)
     ]
 
-    return Product.objects.select_related("producer").filter(id__in=visible_ids).order_by("-id")
+    return (
+        Product.objects.select_related("producer")
+        .filter(id__in=visible_ids)
+        .order_by("-id")
+    )
 
 
 def marketplace_view(request):
@@ -465,7 +491,13 @@ def marketplace_view(request):
 
     category = request.GET.get("category", "").strip()
     query = request.GET.get("q", "").strip()
-    organic_only = request.GET.get("organic", "").lower() == "true"
+
+    # TC-014: organic filter supports:
+    # "" = all products
+    # "true" = organic only
+    # "false" = non-organic only
+    organic_param = request.GET.get("organic", "").strip().lower()
+    organic_only = organic_param == "true"
 
     if category:
         products = products.filter(category=category)
@@ -478,10 +510,14 @@ def marketplace_view(request):
             | Q(producer__username__icontains=query)
         )
 
-    if organic_only:
+    if organic_param == "true":
         products = products.filter(is_organic=True)
+    elif organic_param == "false":
+        products = products.filter(is_organic=False)
 
+    # TC-013: calculate food miles for marketplace product cards
     customer_postcode = None
+
     if request.user.is_authenticated:
         customer_postcode = getattr(request.user, "postcode", None)
 
@@ -506,6 +542,7 @@ def marketplace_view(request):
                 product.within_20_miles = False
 
     unread_notifications_count = 0
+
     if request.user.is_authenticated:
         unread_notifications_count = request.user.notifications.filter(
             is_read=False
@@ -516,13 +553,18 @@ def marketplace_view(request):
         "selected_category": category,
         "search_query": query,
         "organic_only": organic_only,
+        "organic_filter": organic_param,
         "categories": Product.CATEGORY_CHOICES,
         "unread_notifications_count": unread_notifications_count,
     })
 
 
 def product_detail_view(request, pk):
-    product = get_object_or_404(Product.objects.select_related("producer"), pk=pk)
+    product = get_object_or_404(
+        Product.objects.select_related("producer"),
+        pk=pk
+    )
+
     reviews = product.reviews.select_related("customer").all()
 
     user_can_review = can_review_product(request.user, product)
@@ -549,6 +591,7 @@ def product_detail_view(request, pk):
                 within_radius = False
 
     organic_status = None
+
     if hasattr(product, "get_organic_status"):
         organic_status = product.get_organic_status()
 
@@ -570,7 +613,9 @@ def product_food_miles_api(request, product_id):
     customer_postcode = request.GET.get("postcode", "").strip()
 
     if not customer_postcode:
-        return JsonResponse({"error": "Postcode required"}, status=400)
+        return JsonResponse({
+            "error": "Postcode required"
+        }, status=400)
 
     food_miles = product.get_food_miles(customer_postcode)
 
@@ -611,12 +656,15 @@ def add_review_view(request, product_id):
 
     if request.method == "POST":
         form = ReviewForm(request.POST)
+
         if form.is_valid():
             review = form.save(commit=False)
             review.product = product
             review.customer = request.user
             review.save()
+
             messages.success(request, "Review submitted successfully.")
+
             return redirect("product_detail", pk=product.id)
     else:
         form = ReviewForm()
@@ -655,10 +703,8 @@ def add_to_cart(request, product_id):
 @login_required
 def cart_view(request):
     items = list(
-        CartItem.objects.filter(customer=request.user).select_related(
-            "product",
-            "product__producer"
-        )
+        CartItem.objects.filter(customer=request.user)
+        .select_related("product", "product__producer")
     )
 
     total = sum(item.subtotal() for item in items)
@@ -697,7 +743,11 @@ def cart_view(request):
 
 @login_required
 def update_cart_item(request, item_id):
-    cart_item = get_object_or_404(CartItem, id=item_id, customer=request.user)
+    cart_item = get_object_or_404(
+        CartItem,
+        id=item_id,
+        customer=request.user
+    )
 
     if request.method == "POST":
         quantity = int(request.POST.get("quantity"))
@@ -717,8 +767,14 @@ def update_cart_item(request, item_id):
 
 @login_required
 def remove_cart_item(request, item_id):
-    cart_item = get_object_or_404(CartItem, id=item_id, customer=request.user)
+    cart_item = get_object_or_404(
+        CartItem,
+        id=item_id,
+        customer=request.user
+    )
+
     cart_item.delete()
+
     return redirect("cart")
 
 
@@ -763,7 +819,9 @@ def order_success_view(request):
         commission = (total * Decimal("0.05")).quantize(Decimal("0.01"))
         producer_amt = total - commission
 
-        delivery_date = timezone.make_aware(timezone.datetime.fromisoformat(group["date"]))
+        delivery_date = timezone.make_aware(
+            timezone.datetime.fromisoformat(group["date"])
+        )
 
         order = Order.objects.create(
             customer=request.user,
@@ -854,7 +912,8 @@ def orders_view(request):
 
     producers = (
         User.objects.filter(
-            id__in=Order.objects.filter(customer=request.user).values_list("producer_id", flat=True)
+            id__in=Order.objects.filter(customer=request.user)
+            .values_list("producer_id", flat=True)
         )
         .distinct()
         .order_by("business_name", "username")
@@ -901,9 +960,16 @@ def reorder_view(request, order_id):
         added += 1
 
     if added:
-        messages.success(request, "Available items from that order were added to your cart.")
+        messages.success(
+            request,
+            "Available items from that order were added to your cart."
+        )
+
     if skipped:
-        messages.warning(request, "Some items could not be reordered: " + ", ".join(skipped))
+        messages.warning(
+            request,
+            "Some items could not be reordered: " + ", ".join(skipped)
+        )
 
     return redirect("cart")
 
@@ -914,6 +980,7 @@ def producer_products_view(request):
         return HttpResponseForbidden()
 
     products = Product.objects.filter(producer=request.user)
+
     unread_notifications_count = Notification.objects.filter(
         user=request.user,
         is_read=False
@@ -953,6 +1020,7 @@ def mark_notification_read_view(request, notification_id):
         id=notification_id,
         user=request.user
     )
+
     notification.is_read = True
     notification.save()
 
@@ -989,7 +1057,11 @@ def producer_advance_order_status(request, order_id):
     if not request.user.is_producer:
         return HttpResponseForbidden()
 
-    order = get_object_or_404(Order, id=order_id, producer=request.user)
+    order = get_object_or_404(
+        Order,
+        id=order_id,
+        producer=request.user
+    )
 
     next_step_map = {
         "pending": "confirmed",
@@ -1018,7 +1090,11 @@ def producer_update_order_status_view(request, order_id):
     if not request.user.is_producer:
         return HttpResponseForbidden()
 
-    order = get_object_or_404(Order, id=order_id, producer=request.user)
+    order = get_object_or_404(
+        Order,
+        id=order_id,
+        producer=request.user
+    )
 
     btn_handles = {
         "pending": "confirmed",
@@ -1054,7 +1130,9 @@ def producer_update_order_status_view(request, order_id):
 
         order.status_note = status_note
         order.save()
+
         messages.success(request, f"Order #{order.id} updated.")
+
         return redirect("producer_orders")
 
     return render(request, "producer_update_order_status.html", {
@@ -1070,17 +1148,23 @@ def producer_add_product_view(request):
 
     if request.method == "POST":
         form = ProductForm(request.POST, request.FILES)
+
         if form.is_valid():
             product = form.save(commit=False)
             product.producer = request.user
             product.save()
+
             check_low_stock(product)
+
             messages.success(request, "Product added successfully.")
+
             return redirect("producer_products")
     else:
         form = ProductForm()
 
-    return render(request, "producer_add_product.html", {"form": form})
+    return render(request, "producer_add_product.html", {
+        "form": form
+    })
 
 
 @login_required
@@ -1095,15 +1179,21 @@ def producer_edit_product_view(request, pk):
 
     if request.method == "POST":
         form = ProductForm(request.POST, request.FILES, instance=product)
+
         if form.is_valid():
             product = form.save()
+
             check_low_stock(product)
+
             messages.success(request, "Product updated successfully.")
+
             return redirect("producer_products")
     else:
         form = ProductForm(instance=product)
 
-    return render(request, "producer_edit_product.html", {"form": form})
+    return render(request, "producer_edit_product.html", {
+        "form": form
+    })
 
 
 @login_required
@@ -1118,7 +1208,9 @@ def producer_delete_product_view(request, pk):
         return HttpResponseForbidden()
 
     product.delete()
+
     messages.success(request, "Product deleted successfully.")
+
     return redirect("producer_products")
 
 
@@ -1140,7 +1232,11 @@ def checkout_view(request):
     grouped_items = []
 
     for producer, producer_items in producer_map.items():
-        subtotal = sum(item.product.get_effective_price() * item.quantity for item in producer_items)
+        subtotal = sum(
+            item.product.get_effective_price() * item.quantity
+            for item in producer_items
+        )
+
         discount = Decimal("0.00")
 
         if (
@@ -1198,6 +1294,7 @@ def checkout_view(request):
             })
 
         request.session["checkout_data"] = checkout_data
+
         return redirect("create_checkout_session")
 
     return render(request, "checkout.html", {
@@ -1240,7 +1337,11 @@ def producer_finances_view(request):
         if order.updated_at.year == current_year:
             ytd_total += order.producer_amount
 
-        week_start = order.updated_at.date() - timedelta(days=order.updated_at.date().weekday())
+        week_start = (
+            order.updated_at.date()
+            - timedelta(days=order.updated_at.date().weekday())
+        )
+
         week_str = week_start.strftime("%Y-%m-%d")
 
         if week_str not in weekly_data:
@@ -1271,10 +1372,14 @@ def producer_finances_view(request):
             filename_date = week
 
         response = HttpResponse(content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = f'attachment; filename="settlement_report_{filename_date}.csv"'
+        response["Content-Disposition"] = (
+            f'attachment; filename="settlement_report_{filename_date}.csv"'
+        )
+
         response.write("\ufeff")
 
         writer = csv.writer(response)
+
         writer.writerow([
             "Order Number",
             "Customer Name",
@@ -1287,9 +1392,11 @@ def producer_finances_view(request):
 
         if week in weekly_data:
             for o in weekly_data[week]["orders"]:
-                items_sold = ", ".join(
-                    [f"{item.product.name} (x{item.quantity})" for item in o.items.all()]
-                )
+                items_sold = ", ".join([
+                    f"{item.product.name} (x{item.quantity})"
+                    for item in o.items.all()
+                ])
+
                 writer.writerow([
                     o.id,
                     o.customer.get_full_name() or o.customer.username,
@@ -1322,6 +1429,7 @@ def create_recipe_view(request):
             recipe.producer = request.user
             recipe.save()
             form.save_m2m()
+
             return redirect("producer_products")
     else:
         form = RecipeForm()
@@ -1333,7 +1441,10 @@ def create_recipe_view(request):
 
 def recipe_detail_view(request, recipe_id):
     recipe = get_object_or_404(Recipe, id=recipe_id)
-    return render(request, "recipe_detail.html", {"recipe": recipe})
+
+    return render(request, "recipe_detail.html", {
+        "recipe": recipe
+    })
 
 
 @login_required
@@ -1354,11 +1465,13 @@ def producer_mark_surplus_view(request, pk):
 
     if request.method == "POST":
         form = SurplusForm(request.POST, instance=product)
+
         if form.is_valid():
             product = form.save()
 
             if product.is_surplus and not was_surplus:
                 customers = User.objects.filter(is_customer=True)
+
                 for c in customers:
                     Notification.objects.get_or_create(
                         user=c,
@@ -1367,6 +1480,7 @@ def producer_mark_surplus_view(request, pk):
                     )
 
             messages.success(request, "Surplus deal updated successfully.")
+
             return redirect("producer_products")
     else:
         form = SurplusForm(instance=product)
@@ -1378,11 +1492,15 @@ def producer_mark_surplus_view(request, pk):
 
 
 def surplus_deals_view(request):
-    products = Product.objects.select_related("producer").filter(
-        is_surplus=True,
-        surplus_expiry__gt=timezone.now(),
-        stock__gt=0,
-    ).exclude(availability="unavailable")
+    products = (
+        Product.objects.select_related("producer")
+        .filter(
+            is_surplus=True,
+            surplus_expiry__gt=timezone.now(),
+            stock__gt=0,
+        )
+        .exclude(availability="unavailable")
+    )
 
     unread_notifications_count = (
         request.user.notifications.filter(is_read=False).count()
@@ -1404,7 +1522,13 @@ def admin_commission_report_view(request):
     if date_range == "month":
         start_date = end_date - timedelta(days=30)
     elif date_range == "year":
-        start_date = end_date.replace(month=1, day=1, hour=0, minute=0, second=0)
+        start_date = end_date.replace(
+            month=1,
+            day=1,
+            hour=0,
+            minute=0,
+            second=0
+        )
     elif date_range == "all":
         start_date = end_date - timedelta(days=3650)
     else:
@@ -1422,9 +1546,12 @@ def admin_commission_report_view(request):
 
     if request.GET.get("download") == "csv":
         response = HttpResponse(content_type="text/csv")
-        response["Content-Disposition"] = f'attachment; filename="commission_{start_date.date()}_to_{end_date.date()}.csv"'
+        response["Content-Disposition"] = (
+            f'attachment; filename="commission_{start_date.date()}_to_{end_date.date()}.csv"'
+        )
 
         writer = csv.writer(response)
+
         writer.writerow([
             "Order ID",
             "Date",
