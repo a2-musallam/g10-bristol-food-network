@@ -290,12 +290,17 @@ class ProductForm(forms.ModelForm):
             "harvest_date",
             "image",
             "allergens",
+            "is_organic",
+            "organic_certification_number",
         ]
 
         widgets = {
             "description": forms.Textarea(attrs={"rows": 4}),
             "allergens": forms.TextInput(attrs={
                 "placeholder": "e.g. Contains: Milk, Eggs, Wheat (Gluten)"
+            }),
+            "organic_certification_number": forms.TextInput(attrs={
+                "placeholder": "e.g. GB-ORG-4-999999"
             }),
         }
 
@@ -393,6 +398,8 @@ class ReviewForm(forms.ModelForm):
         if rating < 1 or rating > 5:
             raise forms.ValidationError("Rating must be between 1 and 5.")
         return rating
+
+
 class RecipeForm(forms.ModelForm):
     class Meta:
         model = Recipe
@@ -412,5 +419,3 @@ class RecipeForm(forms.ModelForm):
             "instructions": forms.Textarea(attrs={"rows": 6}),
             "products": forms.CheckboxSelectMultiple(),
         }
-
-

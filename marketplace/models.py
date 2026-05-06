@@ -114,6 +114,18 @@ class Product(models.Model):
         null=True
     )
 
+    # Organic certification
+    is_organic = models.BooleanField(
+        default=False,
+        help_text="Is this product certified organic?"
+    )
+    organic_certification_number = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Certification number for audit trail"
+    )
+
     def __str__(self):
         return self.name
 
@@ -176,6 +188,14 @@ class Product(models.Model):
             return False
         km_limit = Decimal("32.19")  # 20 miles in km
         return food_miles <= km_limit
+
+    def get_organic_status(self):
+        """Returns organic status with certification info."""
+        return {
+            "is_certified": self.is_organic,
+            "certification_number": self.organic_certification_number,
+            "display_label": "Certified Organic" if self.is_organic else "Not Organic"
+        }
 
 
 class FoodMiles(models.Model):

@@ -457,6 +457,7 @@ def marketplace_view(request):
 
     category = request.GET.get("category", "").strip()
     query = request.GET.get("q", "").strip()
+    organic_only = request.GET.get("organic", "").lower() == "true"
 
     if category:
         products = products.filter(category=category)
@@ -469,6 +470,10 @@ def marketplace_view(request):
             | Q(producer__username__icontains=query)
         )
 
+    # Filter by organic certification
+    if organic_only:
+        products = products.filter(is_organic=True)
+
     # 🔔 NOTIFICATION COUNT
     unread_notifications_count = 0
     if request.user.is_authenticated:
@@ -480,8 +485,9 @@ def marketplace_view(request):
         "products": products,
         "selected_category": category,
         "search_query": query,
+        "organic_only": organic_only,
         "categories": Product.CATEGORY_CHOICES,
-        "unread_notifications_count": unread_notifications_count,  #  IMPORTANT
+        "unread_notifications_count": unread_notifications_count,
     })
 
 
@@ -501,6 +507,9 @@ def product_detail_view(request, pk):
         if food_miles:
             km_limit = Decimal("32.19")  # 20 miles
             within_radius = food_miles <= km_limit
+    
+    # Get organic certification status
+    organic_status = product.get_organic_status()
 
     return render(request, "product_detail.html", {
         "product": product,
@@ -510,6 +519,7 @@ def product_detail_view(request, pk):
         "food_miles_km": food_miles,
         "within_radius": within_radius,
         "food_miles_miles": float(food_miles) / 1.60934 if food_miles else None,
+        "organic_status": organic_status,
     })
 
 
