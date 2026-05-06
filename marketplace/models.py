@@ -14,6 +14,11 @@ class User(AbstractUser):
     phone = models.CharField(max_length=15, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     business_name = models.CharField(max_length=255, blank=True, null=True)
+    postcode = models.CharField(max_length=10, blank=True, null=True)
+
+    # Food miles: Farm coordinates for distance calculation
+    farm_latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    farm_longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
 
     # TC-017: Community Group specific features
     is_charity_or_education = models.BooleanField(default=False)
@@ -148,7 +153,71 @@ class Product(models.Model):
     def review_count(self):
         return self.reviews.count()
 
+    def get_food_miles(self, customer_postcode):
+        """Calculate food miles for this product to a given customer postcode."""
+        from .utils import calculate_distance_between_postcodes
+        
+        producer = self.producer
+        if not producer.farm_latitude or not producer.farm_longitude:
+            return None
+        
+        distance = calculate_distance_between_postcodes(
+            producer.postcode,
+            customer_postcode,
+            producer.farm_latitude,
+            producer.farm_longitude
+        )
+        return distance
 
+    def is_within_20_mile_radius(self, customer_postcode):
+        """Check if product meets 20-mile radius commitment."""
+        food_miles = self.get_food_miles(customer_postcode)
+        if food_miles is None:
+            return False
+        km_limit = Decimal("32.19")  # 20 miles in km
+        return food_miles <= km_limit
+
+
+class FoodMiles(models.Model):
+    """Stores calculated food miles for a product to a customer postcode."""
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="food_miles_records"
+    )
+    
+    customer_postcode = models.CharField(max_length=10)
+    distance_km = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Distance in kilometers from farm to customer"
+    )
+    
+    # Track customer and order for audit
+    customer = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="food_miles_records"
+    )
+    
+    order = models.ForeignKey(
+        'Order',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="food_miles_records"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.product.name} - {self.distance_km}km"
 
 
 class Order(models.Model):
@@ -188,6 +257,13 @@ class Order(models.Model):
     status_note = models.CharField(max_length=255, blank=True, null=True)
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    
+    total_food_miles = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        help_text="Total food miles for all items in this order"
+    )
 
     discount_amount = models.DecimalField(
         max_digits=10,

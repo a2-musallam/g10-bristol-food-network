@@ -56,4 +56,7 @@ urlpatterns = [
         views.mark_notification_read_view,
         name="mark_notification_read",
     ),
+    
+    # Food Miles Feature
+    path("api/product/<int:product_id>/food-miles/", views.product_food_miles_api, name="product_food_miles_api"),
 ]

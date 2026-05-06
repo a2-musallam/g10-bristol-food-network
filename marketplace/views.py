@@ -8,11 +8,11 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.contrib import messages
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from .models import RecurringOrder, RecurringOrderItem
+from .models import RecurringOrder, RecurringOrderItem, FoodMiles
 from .forms import (
     RestaurantRegistrationForm,
     ProducerRegistrationForm,
@@ -491,12 +491,55 @@ def product_detail_view(request, pk):
 
     user_can_review = can_review_product(request.user, product)
     already_reviewed = has_existing_review(request.user, product)
+    
+    # Calculate food miles if user has postcode
+    food_miles = None
+    within_radius = False
+    
+    if request.user.is_authenticated and request.user.postcode:
+        food_miles = product.get_food_miles(request.user.postcode)
+        if food_miles:
+            km_limit = Decimal("32.19")  # 20 miles
+            within_radius = food_miles <= km_limit
 
     return render(request, "product_detail.html", {
         "product": product,
         "reviews": reviews,
         "user_can_review": user_can_review,
         "already_reviewed": already_reviewed,
+        "food_miles_km": food_miles,
+        "within_radius": within_radius,
+        "food_miles_miles": float(food_miles) / 1.60934 if food_miles else None,
+    })
+
+
+@login_required
+def product_food_miles_api(request, product_id):
+    """API endpoint to get food miles for a product."""
+    product = get_object_or_404(Product, id=product_id)
+    customer_postcode = request.GET.get("postcode", "").strip()
+    
+    if not customer_postcode:
+        return JsonResponse({"error": "Postcode required"}, status=400)
+    
+    food_miles = product.get_food_miles(customer_postcode)
+    
+    if food_miles is None:
+        return JsonResponse({
+            "error": "Could not calculate food miles - producer coordinates missing"
+        }, status=400)
+    
+    km_limit = Decimal("32.19")  # 20 miles
+    within_radius = food_miles <= km_limit
+    miles = float(food_miles) / 1.60934  # km to miles
+    
+    return JsonResponse({
+        "product_id": product_id,
+        "product_name": product.name,
+        "distance_km": float(food_miles),
+        "distance_miles": round(miles, 1),
+        "within_20_mile_radius": within_radius,
+        "producer_name": product.producer.business_name or product.producer.username,
     })
 
 
@@ -602,6 +645,8 @@ def remove_cart_item(request, item_id):
 
 @login_required
 def order_success_view(request):
+    from .utils import create_food_miles_record, calculate_total_food_miles
+    
     checkout_data = request.session.get("checkout_data")
 
     if not checkout_data:
@@ -662,6 +707,14 @@ def order_success_view(request):
 
             item.product.stock -= item.quantity
             item.product.save()
+            
+            # Create food miles record for each product in order
+            create_food_miles_record(item.product, request.user, request.user.postcode, order)
+        
+        # Calculate and store total food miles for order
+        total_miles = calculate_total_food_miles(items, request.user.postcode)
+        order.total_food_miles = total_miles
+        order.save()
 
         created_orders.append(order)
 
@@ -853,15 +906,10 @@ def producer_update_order_status_view(request, order_id):
         return HttpResponseForbidden()
 
     order = get_object_or_404(Order, id=order_id, producer=request.user)
-    allowed_statuses = order.next_allowed_statuses()
 
     if request.method == "POST":
         new_status = request.POST.get("status", "").strip()
         status_note = request.POST.get("status_note", "").strip()
-
-        if new_status not in allowed_statuses:
-            messages.error(request, "That status change is not allowed.")
-            return redirect("producer_orders")
 
         order.status = new_status
         order.status_note = status_note
@@ -872,7 +920,6 @@ def producer_update_order_status_view(request, order_id):
 
     return render(request, "producer_update_order_status.html", {
         "order": order,
-        "allowed_statuses": allowed_statuses,
     })
 
 
@@ -1142,27 +1189,6 @@ def create_recipe_view(request):
     return render(request, "recipe_form.html", {
         "form": form
     })
-
-
-@login_required
-def create_farm_story_view(request):
-    if not request.user.is_producer:
-        return HttpResponseForbidden()
-
-    if request.method == "POST":
-        form = FarmStoryForm(request.POST, request.FILES)
-
-        if form.is_valid():
-            story = form.save(commit=False)
-            story.producer = request.user
-            story.save()
-
-            messages.success(request, "Farm story published successfully.")
-            return redirect("producer_dashboard")
-    else:
-        form = FarmStoryForm()
-
-    return render(request, "create_farm_story.html", {"form": form})
 
 
 def recipe_detail_view(request, recipe_id):
