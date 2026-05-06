@@ -7,12 +7,14 @@
             font-family: Arial, sans-serif;
             max-width: 900px;
             margin: 40px auto;
+            background: #f5f7f9;
         }
 
         .product-container {
             border: 1px solid #ddd;
             padding: 25px;
             border-radius: 8px;
+            background: white;
         }
 
         .price {
@@ -32,6 +34,34 @@
 
         .out-of-stock {
             color: red;
+        }
+
+        .info-box {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .food-box {
+            border: 2px solid #16a34a;
+            background-color: #f0fdf4;
+        }
+
+        .food-title {
+            font-weight: bold;
+            color: #166534;
+            font-size: 18px;
+        }
+
+        .organic-box {
+            border: 2px solid #22c55e;
+            background-color: #ecfdf5;
+        }
+
+        .organic-title {
+            font-weight: bold;
+            color: #15803d;
+            font-size: 18px;
         }
 
         .allergen-box {
@@ -105,6 +135,33 @@
         .action-links button {
             margin-right: 10px;
         }
+
+        .success-text {
+            color: #166534;
+            font-weight: bold;
+        }
+
+        .warning-text {
+            color: #991b1b;
+            font-weight: bold;
+        }
+
+        .muted-text {
+            color: #666;
+        }
+
+        button {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            background: #28a745;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #218838;
+        }
     </style>
 </head>
 <body>
@@ -155,6 +212,74 @@
         {% if product.image %}
             <img src="{{ product.image.url }}" alt="{{ product.name }}">
         {% endif %}
+
+        <!-- TC-013 FOOD MILES DISPLAY -->
+        <div class="info-box food-box">
+            <div class="food-title">
+                🌍 Food Miles
+            </div>
+
+            {% if food_miles_miles %}
+                <p>
+                    This product is approximately
+                    <strong>{{ food_miles_miles|floatformat:1 }} miles</strong>
+                    from your saved customer postcode.
+                </p>
+
+                <p class="muted-text">
+                    Distance in kilometres:
+                    <strong>{{ food_miles_km|floatformat:2 }} km</strong>
+                </p>
+
+                {% if within_radius %}
+                    <p class="success-text">
+                        ✅ Within the Bristol Food Network 20-mile radius.
+                    </p>
+                {% else %}
+                    <p class="warning-text">
+                        ⚠ Outside the Bristol Food Network 20-mile radius.
+                    </p>
+                {% endif %}
+            {% elif user.is_authenticated and user.is_customer %}
+                <p>
+                    Food miles could not be calculated. Please check that the customer postcode and producer location are saved.
+                </p>
+            {% else %}
+                <p>
+                    Log in as a customer to view food miles.
+                </p>
+            {% endif %}
+        </div>
+
+        <!-- TC-014 ORGANIC CERTIFICATION DISPLAY -->
+        <div class="info-box organic-box">
+            <div class="organic-title">
+                🌱 Organic Certification
+            </div>
+
+            {% if product.is_organic %}
+                <p class="success-text">
+                    ✅ Certified Organic
+                </p>
+
+                {% if product.organic_certification_number %}
+                    <p>
+                        <strong>Certification Number:</strong>
+                        {{ product.organic_certification_number }}
+                    </p>
+                {% endif %}
+
+                {% if organic_status %}
+                    <p class="muted-text">
+                        {{ organic_status }}
+                    </p>
+                {% endif %}
+            {% else %}
+                <p>
+                    This product is not certified organic.
+                </p>
+            {% endif %}
+        </div>
 
         <!-- TC-015 ALLERGEN DISPLAY -->
         <div class="allergen-box">
@@ -233,7 +358,13 @@
                 {% for review in reviews %}
                     <div class="review-item">
                         <p><strong>{{ review.rating }}/5 - {{ review.title }}</strong></p>
-                        <p>{{ review.comment }}</p>
+
+                        {% if review.comment %}
+                            <p>{{ review.comment }}</p>
+                        {% elif review.text %}
+                            <p>{{ review.text }}</p>
+                        {% endif %}
+
                         <p>
                             <small>
                                 By {{ review.customer.first_name|default:review.customer.username }}

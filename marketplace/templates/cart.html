@@ -12,7 +12,7 @@
     }
 
     .cart-container {
-      max-width: 1000px;
+      max-width: 1100px;
       margin: 50px auto;
     }
 
@@ -32,6 +32,31 @@
       padding: 20px;
     }
 
+    .food-miles-box {
+      background: #f0fdf4;
+      border: 2px solid #16a34a;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .food-miles-title {
+      color: #166534;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .food-badge {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+      padding: 5px 8px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-block;
+    }
+
     .btn-main {
       background: #28a745;
       color: white;
@@ -41,6 +66,7 @@
 
     .btn-main:hover {
       background: #218838;
+      color: white;
     }
 
     .remove-link {
@@ -78,9 +104,11 @@
       <thead>
         <tr>
           <th>Product</th>
+          <th>Producer</th>
           <th>Price</th>
           <th>Quantity</th>
           <th>Subtotal</th>
+          <th>Food Miles</th>
           <th></th>
         </tr>
       </thead>
@@ -91,6 +119,12 @@
           <td>
             <strong>{{ item.product.name }}</strong><br>
             <small class="text-muted">{{ item.product.unit }}</small>
+          </td>
+
+          <td>
+            <small>
+              {{ item.product.producer.business_name|default:item.product.producer.username }}
+            </small>
           </td>
 
           <td>
@@ -113,12 +147,43 @@
           <td><strong>£{{ item.subtotal }}</strong></td>
 
           <td>
+            {% if item.food_miles_miles %}
+              <span class="food-badge">
+                🌍 {{ item.food_miles_miles }} miles
+              </span>
+            {% else %}
+              <span class="text-muted">Unavailable</span>
+            {% endif %}
+          </td>
+
+          <td>
             <a href="{% url 'remove_cart' item.id %}" class="remove-link">Remove</a>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+
+    <!-- TOTAL FOOD MILES -->
+    <div class="food-miles-box">
+      <h4 class="food-miles-title">🌍 Total Food Miles</h4>
+
+      {% if total_food_miles_miles %}
+        <p class="mb-1">
+          Total food miles for this cart:
+          <strong>{{ total_food_miles_miles }} miles</strong>
+        </p>
+
+        <p class="text-muted mb-0">
+          Total distance in kilometres:
+          <strong>{{ total_food_miles_km|floatformat:2 }} km</strong>
+        </p>
+      {% else %}
+        <p class="mb-0">
+          Food miles could not be calculated for this cart. Please check that the customer postcode and producer location are saved.
+        </p>
+      {% endif %}
+    </div>
 
     <!-- TOTAL -->
     <div class="d-flex justify-content-between align-items-center mt-4 total-box">

@@ -31,6 +31,29 @@
       font-size: 12px;
     }
 
+    .badge-organic {
+      background: #dcfce7;
+      color: #166534;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .badge-food {
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-food-warning {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
     .price {
       font-weight: bold;
       font-size: 18px;
@@ -44,10 +67,16 @@
 
     .btn-cart:hover {
       background: #218838;
+      color: white;
     }
 
     .search-box {
       border-radius: 10px;
+    }
+
+    .filter-note {
+      font-size: 13px;
+      color: #666;
     }
   </style>
 </head>
@@ -95,9 +124,11 @@
       {% endif %}
 
       <a href="{% url 'surplus_deals' %}" class="btn btn-outline-warning btn-sm me-2">🚨 Surplus Deals</a>
+
       {% if user.is_staff %}
         <a href="{% url 'admin_commission_report' %}" class="btn btn-outline-info btn-sm me-2">📊 Commission</a>
       {% endif %}
+
       <a href="{% url 'farm_stories' %}" class="btn btn-outline-success btn-sm me-2">🌿 Farm Stories</a>
 
       <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm">
@@ -112,11 +143,14 @@
 
 <div class="container mt-4">
 
-  <!-- SEARCH -->
+  <!-- SEARCH / FILTERS -->
   <div class="card p-3 mb-4 shadow-sm">
-    <form method="get" class="row g-2">
-      <div class="col-md-6">
-        <input type="text" name="q" value="{{ search_query }}"
+    <form method="get" class="row g-2 align-items-center">
+
+      <div class="col-md-5">
+        <input type="text"
+               name="q"
+               value="{{ search_query }}"
                placeholder="Search products..."
                class="form-control search-box">
       </div>
@@ -132,8 +166,33 @@
         </select>
       </div>
 
-      <div class="col-md-3 d-grid">
+      <div class="col-md-2">
+        <div class="form-check">
+          <input class="form-check-input"
+                 type="checkbox"
+                 name="organic"
+                 value="true"
+                 id="organicFilter"
+                 {% if organic_only %}checked{% endif %}>
+
+          <label class="form-check-label" for="organicFilter">
+            🌱 Organic only
+          </label>
+        </div>
+      </div>
+
+      <div class="col-md-2 d-grid">
         <button class="btn btn-dark">Search</button>
+      </div>
+
+      <div class="col-12">
+        <span class="filter-note">
+          Use the organic filter to show only certified organic products.
+        </span>
+
+        {% if search_query or selected_category or organic_only %}
+          <a href="{% url 'marketplace' %}" class="ms-2">Clear filters</a>
+        {% endif %}
       </div>
     </form>
   </div>
@@ -164,13 +223,13 @@
         </h5>
 
         {% if p.is_surplus and p.get_effective_price < p.price %}
-            <div class="price">
-                <span style="text-decoration: line-through; color: #888;">£{{ p.price }}</span>
-                <span class="text-danger fw-bold fs-5">£{{ p.get_effective_price }}</span> / {{ p.unit }}
-            </div>
-            <span class="badge bg-danger mb-2">{{ p.discount_percentage }}% OFF</span>
+          <div class="price">
+            <span style="text-decoration: line-through; color: #888;">£{{ p.price }}</span>
+            <span class="text-danger fw-bold fs-5">£{{ p.get_effective_price }}</span> / {{ p.unit }}
+          </div>
+          <span class="badge bg-danger mb-2">{{ p.discount_percentage }}% OFF</span>
         {% else %}
-            <div class="price">£{{ p.price }} / {{ p.unit }}</div>
+          <div class="price">£{{ p.price }} / {{ p.unit }}</div>
         {% endif %}
 
         <small class="text-muted">
@@ -180,16 +239,44 @@
         <div class="mt-2">
           <span class="badge badge-soft">{{ p.get_category_display }}</span>
           <span class="badge badge-soft">{{ p.get_availability_display }}</span>
+
+          {% if p.is_organic %}
+            <span class="badge badge-organic">🌱 Certified Organic</span>
+          {% endif %}
         </div>
 
-        <!-- ✅ STOCK FIX -->
+        <!-- STOCK -->
         {% if p.stock > 0 %}
-          <small class="text-muted mt-2">Stock: {{ p.stock }}</small>
+          <small class="text-muted mt-2 d-block">Stock: {{ p.stock }}</small>
         {% else %}
-          <small class="text-danger mt-2 fw-bold">Out of Stock</small>
+          <small class="text-danger mt-2 fw-bold d-block">Out of Stock</small>
         {% endif %}
 
-        <!-- ✅ BUTTON FIX -->
+        <!-- TC-013 FOOD MILES DISPLAY -->
+        <div class="mt-2">
+          {% if p.food_miles_miles %}
+            <span class="badge badge-food">
+              🌍 Food miles: {{ p.food_miles_miles }} miles
+            </span>
+
+            {% if p.within_20_miles %}
+              <span class="badge badge-food ms-1">
+                Within 20-mile radius
+              </span>
+            {% else %}
+              <span class="badge badge-food-warning ms-1">
+                Outside 20-mile radius
+              </span>
+            {% endif %}
+
+          {% elif user.is_authenticated and user.is_customer %}
+            <span class="badge bg-light text-muted border">
+              🌍 Food miles unavailable
+            </span>
+          {% endif %}
+        </div>
+
+        <!-- BUTTON -->
         <div class="mt-auto pt-3">
           {% if user.is_authenticated and user.is_customer %}
 
@@ -220,6 +307,7 @@
   {% if not products %}
     <div class="text-center mt-5">
       <h4>No products found</h4>
+      <p class="text-muted">Try changing your search, category, or organic filter.</p>
     </div>
   {% endif %}
 
