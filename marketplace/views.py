@@ -466,7 +466,10 @@ def marketplace_view(request):
 
     category = request.GET.get("category", "").strip()
     query = request.GET.get("q", "").strip()
-    organic_only = request.GET.get("organic", "").lower() == "true"
+
+    # 🔥 SAFE ORGANIC FILTER
+    organic_param = request.GET.get("organic", "")
+    organic_only = organic_param.lower() == "true"
 
     if category:
         products = products.filter(category=category)
@@ -479,11 +482,11 @@ def marketplace_view(request):
             | Q(producer__username__icontains=query)
         )
 
-    # Filter by organic certification
+    #  ORGANIC FILTER
     if organic_only:
         products = products.filter(is_organic=True)
 
-    # 🔔 NOTIFICATION COUNT
+    #  NOTIFICATIONS
     unread_notifications_count = 0
     if request.user.is_authenticated:
         unread_notifications_count = request.user.notifications.filter(
@@ -494,11 +497,10 @@ def marketplace_view(request):
         "products": products,
         "selected_category": category,
         "search_query": query,
-        "organic_only": organic_only,
+        "organic_only": organic_only,  #  for template
         "categories": Product.CATEGORY_CHOICES,
         "unread_notifications_count": unread_notifications_count,
     })
-
 
 def product_detail_view(request, pk):
     product = get_object_or_404(Product.objects.select_related("producer"), pk=pk)

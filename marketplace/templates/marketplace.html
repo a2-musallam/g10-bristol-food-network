@@ -51,6 +51,7 @@
     }
   </style>
 </head>
+
 <body>
 
 <!-- NAVBAR -->
@@ -64,8 +65,6 @@
       </span>
 
       {% if user.is_customer %}
-
-        <!-- NOTIFICATIONS -->
         <a href="{% url 'notifications' %}" class="btn btn-outline-dark btn-sm me-2">
           🔔 Notifications
           {% if unread_notifications_count > 0 %}
@@ -79,10 +78,8 @@
           <button type="button" class="btn btn-outline-dark btn-sm dropdown-toggle" data-bs-toggle="dropdown">
             My Orders
           </button>
-
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{% url 'orders' %}">Orders</a></li>
-
             {% if user.is_restaurant %}
               <li><a class="dropdown-item" href="{% url 'recurring_orders' %}">Recurring Orders</a></li>
             {% endif %}
@@ -95,14 +92,14 @@
       {% endif %}
 
       <a href="{% url 'surplus_deals' %}" class="btn btn-outline-warning btn-sm me-2">🚨 Surplus Deals</a>
+
       {% if user.is_staff %}
         <a href="{% url 'admin_commission_report' %}" class="btn btn-outline-info btn-sm me-2">📊 Commission</a>
       {% endif %}
+
       <a href="{% url 'farm_stories' %}" class="btn btn-outline-success btn-sm me-2">🌿 Farm Stories</a>
 
-      <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm">
-        Logout
-      </a>
+      <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm">Logout</a>
 
     {% else %}
       <a href="{% url 'login' %}" class="btn btn-dark btn-sm">Login</a>
@@ -112,10 +109,11 @@
 
 <div class="container mt-4">
 
-  <!-- SEARCH -->
+  <!-- SEARCH + FILTER -->
   <div class="card p-3 mb-4 shadow-sm">
     <form method="get" class="row g-2">
-      <div class="col-md-6">
+
+      <div class="col-md-4">
         <input type="text" name="q" value="{{ search_query }}"
                placeholder="Search products..."
                class="form-control search-box">
@@ -132,9 +130,23 @@
         </select>
       </div>
 
-      <div class="col-md-3 d-grid">
+      <!-- 🌱 ORGANIC FILTER -->
+      <div class="col-md-3">
+        <select name="organic" class="form-select">
+          <option value="">All Products</option>
+          <option value="true" {% if organic_only %}selected{% endif %}>
+            🌱 Organic Only
+          </option>
+          <option value="false" {% if not organic_only and request.GET.organic == "false" %}selected{% endif %}>
+            Non-Organic
+          </option>
+        </select>
+      </div>
+
+      <div class="col-md-2 d-grid">
         <button class="btn btn-dark">Search</button>
       </div>
+
     </form>
   </div>
 
@@ -157,12 +169,12 @@
         {% endif %}
 
         <h5>
-          <a href="{% url 'product_detail' p.pk %}"
-             class="text-dark text-decoration-none">
+          <a href="{% url 'product_detail' p.pk %}" class="text-dark text-decoration-none">
             {{ p.name }}
           </a>
         </h5>
 
+        <!-- PRICE / SURPLUS -->
         {% if p.is_surplus and p.get_effective_price < p.price %}
             <div class="price">
                 <span style="text-decoration: line-through; color: #888;">£{{ p.price }}</span>
@@ -177,19 +189,26 @@
           {{ p.producer.business_name|default:p.producer.username }}
         </small>
 
+        <!-- BADGES -->
         <div class="mt-2">
           <span class="badge badge-soft">{{ p.get_category_display }}</span>
           <span class="badge badge-soft">{{ p.get_availability_display }}</span>
+
+          {% if p.is_organic %}
+            <span class="badge bg-success">🌱 Organic</span>
+          {% else %}
+            <span class="badge bg-secondary">Non-Organic</span>
+          {% endif %}
         </div>
 
-        <!-- ✅ STOCK FIX -->
+        <!-- STOCK -->
         {% if p.stock > 0 %}
           <small class="text-muted mt-2">Stock: {{ p.stock }}</small>
         {% else %}
           <small class="text-danger mt-2 fw-bold">Out of Stock</small>
         {% endif %}
 
-        <!-- ✅ BUTTON FIX -->
+        <!-- BUTTON -->
         <div class="mt-auto pt-3">
           {% if user.is_authenticated and user.is_customer %}
 
