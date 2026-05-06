@@ -63,7 +63,19 @@
                 {% endif %}
 
                 <p>
-                    <a href="{% url 'producer_edit_product' product.id %}">✏ Edit</a>
+                    <a href="{% url 'producer_edit_product' product.id %}">✏ Edit</a> |
+                    <a href="{% url 'producer_mark_surplus' product.id %}">🏷 Mark as Surplus</a>
+
+                    <form method="post" action="{% url 'producer_delete_product' product.id %}" style="display:inline;">
+                <p>
+                    <strong>Price:</strong> £{{ product.price }} <br>
+                    {% if product.is_surplus %}
+                       <span style="color: red;"><strong>Surplus Deal:</strong> {{ product.discount_percentage }}% off! Effective: £{{ product.get_effective_price }}</span><br>
+                    {% endif %}
+
+                    {% if product.is_surplus %}
+                    <p style="color: red;"><strong>Surplus Deal Active:</strong> {{ product.discount_percentage }}% off! (Current Price: £{{ product.get_effective_price }})</p>
+                {% endif %}
 
                     <form method="post"
                           action="{% url 'producer_delete_product' product.id %}"

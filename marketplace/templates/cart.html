@@ -93,7 +93,14 @@
             <small class="text-muted">{{ item.product.unit }}</small>
           </td>
 
-          <td>£{{ item.product.price }}</td>
+          <td>
+            {% if item.product.is_surplus %}
+              <span style="text-decoration: line-through; color: #888;">£{{ item.product.price }}</span><br>
+              <span class="text-danger fw-bold">£{{ item.product.get_effective_price }}</span>
+            {% else %}
+              £{{ item.product.price }}
+            {% endif %}
+          </td>
 
           <td style="max-width: 150px;">
             <form action="{% url 'update_cart' item.id %}" method="POST" class="d-flex gap-2">

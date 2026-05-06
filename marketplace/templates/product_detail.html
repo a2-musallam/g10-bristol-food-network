@@ -121,7 +121,17 @@
         <p>{{ product.description }}</p>
 
         <div class="price">
-            £{{ product.price }}{% if product.unit %} per {{ product.unit }}{% endif %}
+            {% if product.is_surplus and product.get_effective_price < product.price %}
+                <span style="text-decoration: line-through; color: gray;">£{{ product.price }}</span>
+                <span style="color: red; font-size: 24px;">£{{ product.get_effective_price }}</span>
+                <br><span style="color: red;"><strong>Last Minute Deal:</strong> {{ product.discount_percentage }}% off!</span>
+                <br><small><strong>Expires:</strong> {{ product.surplus_expiry }}</small>
+                {% if product.surplus_note %}
+                    <br><small><strong>Note:</strong> {{ product.surplus_note }}</small>
+                {% endif %}
+            {% else %}
+                £{{ product.price }}{% if product.unit %} per {{ product.unit }}{% endif %}
+            {% endif %}
         </div>
 
         <div class="stock">

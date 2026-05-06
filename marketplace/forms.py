@@ -128,10 +128,10 @@ class CustomerRegistrationForm(forms.ModelForm):
         user = super().save(commit=False)
         user.set_password(self.cleaned_data["password"])
 
-        
+
         user.is_customer = True
 
-        
+
         if self.cleaned_data.get("is_restaurant"):
             user.is_restaurant = True
 
@@ -139,7 +139,7 @@ class CustomerRegistrationForm(forms.ModelForm):
             user.save()
 
         return user
-      
+
 class RestaurantRegistrationForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput)
     confirm_password = forms.CharField(widget=forms.PasswordInput)
@@ -147,7 +147,7 @@ class RestaurantRegistrationForm(forms.ModelForm):
     class Meta:
         model = User
         fields = [
-            "business_name",  
+            "business_name",
             "email",
             "phone",
             "address",
@@ -183,7 +183,7 @@ class RestaurantRegistrationForm(forms.ModelForm):
         user.username = username
         user.set_password(self.cleaned_data["password"])
 
-        
+
         user.is_customer = True
         user.is_restaurant = True
 
@@ -419,3 +419,24 @@ class RecipeForm(forms.ModelForm):
             "instructions": forms.Textarea(attrs={"rows": 6}),
             "products": forms.CheckboxSelectMultiple(),
         }
+
+class SurplusForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields =['is_surplus', 'discount_percentage', 'surplus_expiry', 'surplus_note']
+        widgets = {
+            'surplus_expiry': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}),
+            'surplus_note': forms.Textarea(attrs={'rows': 3, 'placeholder': 'e.g. Perfect condition, must sell quickly to avoid waste', 'class': 'form-control'}),
+            'discount_percentage': forms.NumberInput(attrs={'class': 'form-control', 'min': 10, 'max': 50}),
+            'is_surplus': forms.CheckboxInput(attrs={'class': 'form-check-input'})
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('is_surplus'):
+            discount = cleaned_data.get('discount_percentage')
+            if not discount or not (10 <= discount <= 50):
+                self.add_error('discount_percentage', 'Discount must be between 10 and 50 percent.')
+            if not cleaned_data.get('surplus_expiry'):
+                self.add_error('surplus_expiry', 'Expiry date is required for surplus deals.')
+        return cleaned_data

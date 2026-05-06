@@ -29,7 +29,7 @@
     <div class="box">
         <p><strong>Order ID:</strong> {{ order.id }}</p>
         <p><strong>Customer:</strong> {{ order.customer.get_full_name|default:order.customer.username }}</p>
-        <p><strong>Status:</strong> {{ order.get_status_display }}</p>
+        <p><strong>Status:</strong> <span id="status-text-{{ order.id }}">{{ order.get_status_display }}</span></p>
         <p><strong>Order Date:</strong> {{ order.created_at|date:"j/n/Y g:i a" }}</p>
         <p><strong>Delivery Date:</strong> {{ order.delivery_date|date:"j/n/Y g:i a" }}</p>
         <p><strong>Delivery Address:</strong> {{ order.delivery_address }}</p>
@@ -45,8 +45,23 @@
         {% endfor %}
 
         <p style="margin-top: 12px;">
-            <a href="{% url 'producer_order_detail' order.id %}">View Full Details</a> |
-            <a href="{% url 'producer_update_order_status' order.id %}">Update status</a>
+            <div id="action-container-{{ order.id }}" style="display: flex; gap: 10px; align-items: center; margin-top: 12px;">
+                <a href="{% url 'producer_order_detail' order.id %}" class="btn btn-sm btn-outline-secondary" style="font-size: 0.8rem; padding: 4px 8px;">View Details</a>
+
+                {% if order.status != 'delivered' and order.status != 'cancelled' %}
+                    <button type="button"
+                            onclick="advanceOrder('{{ order.id }}', '{% url 'producer_advance_order' order.id %}')"
+                            id="btn-{{ order.id }}"
+                            style="background-color: #2ecc71; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
+                        {% if order.status == 'pending' %} ✅ Confirm Order
+                        {% elif order.status == 'confirmed' %} 📦 Mark as Ready
+                        {% elif order.status == 'ready' %} 🚚 Mark as Delivered
+                        {% endif %}
+                    </button>
+                {% endif %}
+
+                <a href="{% url 'producer_update_order_status' order.id %}" style="font-size: 0.85rem; color: #666; margin-left: 10px; text-decoration: underline;">Other Updates / Note</a>
+            </div>
         </p>
     </div>
 {% empty %}
@@ -58,4 +73,32 @@
 <p><a href="{% url 'producer_products' %}">← Back to my products</a></p>
 
 </body>
+
+<script>
+function advanceOrder(orderId, url) {
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('status-text-' + orderId).innerText = data.new_status_display;
+            const btn = document.getElementById('btn-' + orderId);
+
+            if (data.new_status_key === 'confirmed') {
+                btn.innerText = '📦 Mark as Ready';
+            } else if (data.new_status_key === 'ready') {
+                btn.innerText = '🚚 Mark as Delivered';
+            } else if (data.new_status_key === 'delivered') {
+                btn.remove();
+            }
+        }
+    });
+}
+</script>
+
 </html>

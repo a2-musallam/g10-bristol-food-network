@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0002_food_miles_feature'),
+        ('marketplace', '0017_remove_notification_producer_notification_user_and_more'),
     ]
 
     operations = [

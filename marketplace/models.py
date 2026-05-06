@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db.models import Avg
 from datetime import timedelta
 from django.utils import timezone
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class User(AbstractUser):
     is_producer = models.BooleanField(default=False)
@@ -52,6 +53,25 @@ class Product(models.Model):
         ("preserves", "Preserves"),
         ("seasonal", "Seasonal Specialties"),
     ]
+
+    # TC-019: Surplus Produce & Discounts
+    is_surplus = models.BooleanField(default=False)
+    discount_percentage = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(10), MaxValueValidator(50)],
+        blank=True, null=True,
+        help_text="Discount between 10% and 50%"
+    )
+    surplus_expiry = models.DateTimeField(blank=True, null=True)
+    surplus_note = models.TextField(blank=True, null=True)
+
+    def get_effective_price(self):
+        """Returns discounted price if product is an active surplus deal."""
+        if self.is_surplus and self.discount_percentage and self.surplus_expiry:
+            if self.surplus_expiry > timezone.now():
+                discount = (Decimal(self.discount_percentage) / Decimal("100.00")) * self.price
+                return (self.price - discount).quantize(Decimal("0.01"))
+        return self.price
 
     AVAILABILITY_CHOICES = [
         ("in_season", "In Season (Available)"),
@@ -168,11 +188,11 @@ class Product(models.Model):
     def get_food_miles(self, customer_postcode):
         """Calculate food miles for this product to a given customer postcode."""
         from .utils import calculate_distance_between_postcodes
-        
+
         producer = self.producer
         if not producer.farm_latitude or not producer.farm_longitude:
             return None
-        
+
         distance = calculate_distance_between_postcodes(
             producer.postcode,
             customer_postcode,
@@ -205,14 +225,14 @@ class FoodMiles(models.Model):
         on_delete=models.CASCADE,
         related_name="food_miles_records"
     )
-    
+
     customer_postcode = models.CharField(max_length=10)
     distance_km = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         help_text="Distance in kilometers from farm to customer"
     )
-    
+
     # Track customer and order for audit
     customer = models.ForeignKey(
         User,
@@ -221,7 +241,7 @@ class FoodMiles(models.Model):
         blank=True,
         related_name="food_miles_records"
     )
-    
+
     order = models.ForeignKey(
         'Order',
         on_delete=models.SET_NULL,
@@ -229,13 +249,13 @@ class FoodMiles(models.Model):
         blank=True,
         related_name="food_miles_records"
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['-created_at']
-    
+
     def __str__(self):
         return f"{self.product.name} - {self.distance_km}km"
 
@@ -277,7 +297,7 @@ class Order(models.Model):
     status_note = models.CharField(max_length=255, blank=True, null=True)
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    
+
     total_food_miles = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -295,7 +315,7 @@ class Order(models.Model):
     producer_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
-    
+
     recurring_order = models.ForeignKey(
         "RecurringOrder",
         on_delete=models.SET_NULL,
@@ -408,13 +428,13 @@ class RecurringOrder(models.Model):
             subtotal = Decimal("0.00")
 
             for item in producer_items:
-                item_subtotal = item.product.price * item.quantity
+                item_subtotal = item.product.get_effective_price() * item.quantity
 
                 OrderItem.objects.create(
                     order=order,
                     product=item.product,
                     quantity=item.quantity,
-                    unit_price=item.product.price,
+                    unit_price=item.product.get_effective_price(),
                     subtotal=item_subtotal,
                 )
 
@@ -489,6 +509,9 @@ class CartItem(models.Model):
     def __str__(self):
         return f"{self.product.name} x {self.quantity}"
 
+    def subtotal(self):
+        return self.product.get_effective_price() * self.quantity
+
 
 class Notification(models.Model):
     user = models.ForeignKey(
@@ -541,7 +564,7 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.rating} stars"
-      
+
 class Recipe(models.Model):
     producer = models.ForeignKey(
         User,

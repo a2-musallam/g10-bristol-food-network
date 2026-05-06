@@ -7,7 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0001_initial'),  # Update this to match your last migration
+        ('marketplace', '0018_organic_certification'),
     ]
 
     operations = [

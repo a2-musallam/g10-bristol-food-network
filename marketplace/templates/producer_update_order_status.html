@@ -11,35 +11,34 @@
 <body>
 
 <div class="box">
-    <h1>Update Order #{{ order.id }}</h1>
+    <h1>Other Updates for Order #{{ order.id }}</h1>
 
     <p><strong>Current status:</strong> {{ order.get_status_display }}</p>
 
-    {% if allowed_statuses %}
-        <form method="post">
-            {% csrf_token %}
+    <form method="post">
+        {% csrf_token %}
 
-            <label for="status"><strong>New status</strong></label>
-            <select name="status" id="status" required>
-                <option value="">-- Select new status --</option>
+        {% if allowed_statuses %}
+            <label for="status"><strong>Change Status</strong></label>
+            <select name="status" id="status">
                 {% for value in allowed_statuses %}
                     <option value="{{ value }}">
+                        {% if value == "cancelled" %}Cancelled{% endif %}
                         {% if value == "confirmed" %}Confirmed{% endif %}
                         {% if value == "ready" %}Ready for Collection / Delivery{% endif %}
                         {% if value == "delivered" %}Delivered{% endif %}
-                        {% if value == "cancelled" %}Cancelled{% endif %}
                     </option>
                 {% endfor %}
             </select>
+        {% else %}
+            <p><em>No alternative status transitions available for this stage.</em></p>
+        {% endif %}
 
-            <label for="status_note"><strong>Optional note for customer</strong></label>
-            <textarea name="status_note" id="status_note" rows="4" placeholder="Example: Your order will be ready tomorrow morning."></textarea>
+        <label for="status_note"><strong>Add/Update Note for customer</strong></label>
+        <textarea name="status_note" id="status_note" rows="4">{{ order.status_note|default:'' }}</textarea>
 
-            <button type="submit">Save update</button>
-        </form>
-    {% else %}
-        <p>This order cannot move to another status.</p>
-    {% endif %}
+        <button type="submit" class="btn btn-primary">Save Update</button>
+    </form>
 
     <p><a href="{% url 'producer_orders' %}">← Back to producer orders</a></p>
 </div>

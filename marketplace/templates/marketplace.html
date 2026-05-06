@@ -94,9 +94,11 @@
         <a href="{% url 'producer_products' %}" class="btn btn-outline-dark btn-sm me-2">My Products</a>
       {% endif %}
 
-      <a href="{% url 'farm_stories' %}" class="btn btn-outline-success btn-sm me-2">
-        🌿 Farm Stories
-      </a>
+      <a href="{% url 'surplus_deals' %}" class="btn btn-outline-warning btn-sm me-2">🚨 Surplus Deals</a>
+      {% if user.is_staff %}
+        <a href="{% url 'admin_commission_report' %}" class="btn btn-outline-info btn-sm me-2">📊 Commission</a>
+      {% endif %}
+      <a href="{% url 'farm_stories' %}" class="btn btn-outline-success btn-sm me-2">🌿 Farm Stories</a>
 
       <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm">
         Logout
@@ -161,7 +163,15 @@
           </a>
         </h5>
 
-        <div class="price">£{{ p.price }} / {{ p.unit }}</div>
+        {% if p.is_surplus and p.get_effective_price < p.price %}
+            <div class="price">
+                <span style="text-decoration: line-through; color: #888;">£{{ p.price }}</span>
+                <span class="text-danger fw-bold fs-5">£{{ p.get_effective_price }}</span> / {{ p.unit }}
+            </div>
+            <span class="badge bg-danger mb-2">{{ p.discount_percentage }}% OFF</span>
+        {% else %}
+            <div class="price">£{{ p.price }} / {{ p.unit }}</div>
+        {% endif %}
 
         <small class="text-muted">
           {{ p.producer.business_name|default:p.producer.username }}

@@ -20,7 +20,7 @@ urlpatterns = [
     path("cart/add/<int:product_id>/", views.add_to_cart, name="add_to_cart"),
     path("cart/update/<int:item_id>/", views.update_cart_item, name="update_cart"),
     path("cart/remove/<int:item_id>/", views.remove_cart_item, name="remove_cart"),
-    path("checkout/", views.checkout_view, name="checkout"),  
+    path("checkout/", views.checkout_view, name="checkout"),
     path("create-checkout-session/", views.create_checkout_session, name="create_checkout_session"),
     path("farm-stories/", views.farm_stories_view, name="farm_stories"),
     path("order-success/", views.order_success_view, name="order_success"),
@@ -42,6 +42,7 @@ urlpatterns = [
     path("producer/orders/", views.producer_orders_view, name="producer_orders"),
     path("producer/orders/<int:order_id>/", views.producer_order_detail_view, name="producer_order_detail"),
     path("producer/orders/<int:order_id>/status/", views.producer_update_order_status_view, name="producer_update_order_status"),
+    path("producer/orders/<int:order_id>/advance/", views.producer_advance_order_status, name="producer_advance_order"),
 
     path("producer/recipes/new/", views.create_recipe_view, name="create_recipe"),
     path("producer/farm-stories/new/", views.create_farm_story_view, name="create_farm_story"),
@@ -56,7 +57,12 @@ urlpatterns = [
         views.mark_notification_read_view,
         name="mark_notification_read",
     ),
-    
+
     # Food Miles Feature
     path("api/product/<int:product_id>/food-miles/", views.product_food_miles_api, name="product_food_miles_api"),
+
+    #TC-019 (Surplus Produce/Discounts) and TC-025 (Network Commission)
+    path("producer/products/<int:pk>/surplus/", views.producer_mark_surplus_view, name="producer_mark_surplus"),
+    path("surplus-deals/", views.surplus_deals_view, name="surplus_deals"),
+    path("network-commission/", views.admin_commission_report_view, name="admin_commission_report"),
 ]

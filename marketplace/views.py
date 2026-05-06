@@ -2,8 +2,11 @@ import csv
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from decimal import Decimal
+from django.contrib.admin.views.decorators import staff_member_required
+from .forms import SurplusForm
 from django.conf import settings
 from django.contrib import messages
+from django.urls import reverse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
@@ -136,11 +139,11 @@ def recurring_orders_view(request):
     #  AUTO GENERATE + NOTIFICATION
     for recurring in recurring_orders:
         if recurring.is_active and recurring.next_order_date:
-            
-            
+
+
             if recurring.next_order_date <= timezone.now().date():
-                
-                
+
+
                 new_orders = recurring.generate_next_order()
 
                 #  notification
@@ -236,7 +239,7 @@ def create_checkout_session(request):
     line_items = []
     subtotal = Decimal("0.00")
 
-    
+
     for group in checkout_data["groups"]:
         producer_id = group["producer_id"]
 
@@ -246,21 +249,19 @@ def create_checkout_session(request):
         ).select_related("product")
 
         for item in items:
-            item_total = item.product.price * item.quantity
+            item_total = item.product.get_effective_price() * item.quantity
             subtotal += item_total
 
             line_items.append({
                 "price_data": {
                     "currency": "gbp",
-                    "product_data": {
-                        "name": item.product.name,
-                    },
-                    "unit_amount": int(item.product.price * 100),  
+                    "product_data": { "name": item.product.name },
+                    "unit_amount": int(item.product.get_effective_price() * 100),
                 },
                 "quantity": item.quantity,
             })
 
-    
+
     discount_amount = Decimal("0.00")
 
     if (
@@ -272,15 +273,23 @@ def create_checkout_session(request):
             subtotal * request.user.bulk_discount_rate / Decimal("100")
         ).quantize(Decimal("0.01"))
 
+    host = request.get_host()
+    if (host == 'localhost' or host == '127.0.0.1'):
+        host = f"{host}:8000"
+
+    protocol = "https" if request.is_secure() else "http"
+    success_url = f"{protocol}://{host}{reverse('order_success')}"
+    cancel_url = f"{protocol}://{host}{reverse('checkout')}"
+
     session_data = {
         "payment_method_types": ["card"],
         "line_items": line_items,
         "mode": "payment",
-        "success_url": "http://127.0.0.1:8000/order-success/",
-        "cancel_url": "http://127.0.0.1:8000/checkout/",
+        "success_url": success_url,
+        "cancel_url": cancel_url,
     }
 
-    
+
     if discount_amount > 0:
         coupon = stripe.Coupon.create(
             amount_off=int(discount_amount * 100),
@@ -497,17 +506,17 @@ def product_detail_view(request, pk):
 
     user_can_review = can_review_product(request.user, product)
     already_reviewed = has_existing_review(request.user, product)
-    
+
     # Calculate food miles if user has postcode
     food_miles = None
     within_radius = False
-    
+
     if request.user.is_authenticated and request.user.postcode:
         food_miles = product.get_food_miles(request.user.postcode)
         if food_miles:
             km_limit = Decimal("32.19")  # 20 miles
             within_radius = food_miles <= km_limit
-    
+
     # Get organic certification status
     organic_status = product.get_organic_status()
 
@@ -528,21 +537,21 @@ def product_food_miles_api(request, product_id):
     """API endpoint to get food miles for a product."""
     product = get_object_or_404(Product, id=product_id)
     customer_postcode = request.GET.get("postcode", "").strip()
-    
+
     if not customer_postcode:
         return JsonResponse({"error": "Postcode required"}, status=400)
-    
+
     food_miles = product.get_food_miles(customer_postcode)
-    
+
     if food_miles is None:
         return JsonResponse({
             "error": "Could not calculate food miles - producer coordinates missing"
         }, status=400)
-    
+
     km_limit = Decimal("32.19")  # 20 miles
     within_radius = food_miles <= km_limit
     miles = float(food_miles) / 1.60934  # km to miles
-    
+
     return JsonResponse({
         "product_id": product_id,
         "product_name": product.name,
@@ -656,7 +665,7 @@ def remove_cart_item(request, item_id):
 @login_required
 def order_success_view(request):
     from .utils import create_food_miles_record, calculate_total_food_miles
-    
+
     checkout_data = request.session.get("checkout_data")
 
     if not checkout_data:
@@ -691,9 +700,11 @@ def order_success_view(request):
 
         total = (subtotal - discount).quantize(Decimal("0.01"))
 
-        delivery_date = timezone.make_aware(
-            timezone.datetime.fromisoformat(group["date"])
-        )
+        # TC-025: 5% Commission calculation
+        commission = (total * Decimal("0.05")).quantize(Decimal("0.01"))
+        producer_amt = total - commission
+
+        delivery_date = timezone.make_aware(timezone.datetime.fromisoformat(group["date"]))
 
         order = Order.objects.create(
             customer=request.user,
@@ -703,6 +714,8 @@ def order_success_view(request):
             status="pending",
             subtotal=subtotal,
             discount_amount=discount,
+            commission_amount=commission,
+            producer_amount=producer_amt,
             total_amount=total,
         )
 
@@ -711,16 +724,16 @@ def order_success_view(request):
                 order=order,
                 product=item.product,
                 quantity=item.quantity,
-                unit_price=item.product.price,
+                unit_price=item.product.get_effective_price(),
                 subtotal=item.subtotal(),
             )
 
             item.product.stock -= item.quantity
             item.product.save()
-            
+
             # Create food miles record for each product in order
             create_food_miles_record(item.product, request.user, request.user.postcode, order)
-        
+
         # Calculate and store total food miles for order
         total_miles = calculate_total_food_miles(items, request.user.postcode)
         order.total_food_miles = total_miles
@@ -897,7 +910,7 @@ def producer_orders_view(request):
         Order.objects.filter(producer=request.user)
         .select_related("customer")
         .prefetch_related("items__product")
-        .order_by("delivery_date", "-created_at")
+        .order_by("-created_at")
     )
 
     if status:
@@ -909,29 +922,85 @@ def producer_orders_view(request):
         "status_choices": Order.STATUS_CHOICES,
     })
 
-
 @login_required
-def producer_update_order_status_view(request, order_id):
+@require_POST
+def producer_advance_order_status(request, order_id):
+    """Handles the button click: Pending -> Confirmed -> Ready -> Delivered."""
     if not request.user.is_producer:
         return HttpResponseForbidden()
 
     order = get_object_or_404(Order, id=order_id, producer=request.user)
 
+    next_step_map = {
+        "pending": "confirmed",
+        "confirmed": "ready",
+        "ready": "delivered",
+    }
+
+    new_status_key = next_step_map.get(order.status)
+
+    if new_status_key:
+        order.status = new_status_key
+        order.save()
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({
+                "status": "success",
+                "new_status_display": order.get_status_display(),
+                "new_status_key": order.status
+            })
+
+    return redirect("producer_orders")
+
+@login_required
+def producer_update_order_status_view(request, order_id):
+    """Handles the 'Other Updates' page: showing ONLY options NOT on the main button."""
+    if not request.user.is_producer:
+        return HttpResponseForbidden()
+
+    order = get_object_or_404(Order, id=order_id, producer=request.user)
+
+    btn_handles = {
+        "pending": "confirmed",
+        "confirmed": "ready",
+        "ready": "delivered",
+    }
+
+    current_button_action = btn_handles.get(order.status)
+
+    full_transition_map = {
+        "pending": ["confirmed", "cancelled"],
+        "confirmed": ["ready", "cancelled"],
+        "ready": ["delivered", "cancelled"],
+        "delivered": [],
+        "cancelled": [],
+    }
+
+    allowed_statuses = [
+        s for s in full_transition_map.get(order.status, [])
+        if s != order.status and s != current_button_action
+    ]
+
     if request.method == "POST":
         new_status = request.POST.get("status", "").strip()
         status_note = request.POST.get("status_note", "").strip()
 
-        order.status = new_status
+        if new_status:
+            if new_status in allowed_statuses:
+                order.status = new_status
+            else:
+                messages.error(request, "Invalid status transition.")
+                return redirect("producer_orders")
+
         order.status_note = status_note
         order.save()
-
-        messages.success(request, f"Order #{order.id} updated to {order.get_status_display()}.")
+        messages.success(request, f"Order #{order.id} updated.")
         return redirect("producer_orders")
 
     return render(request, "producer_update_order_status.html", {
         "order": order,
+        "allowed_statuses": allowed_statuses,
     })
-
 
 @login_required
 def producer_add_product_view(request):
@@ -1009,7 +1078,7 @@ def checkout_view(request):
     grouped_items = []
 
     for producer, producer_items in producer_map.items():
-        subtotal = sum(item.product.price * item.quantity for item in producer_items)
+        subtotal = sum(item.product.get_effective_price() * item.quantity for item in producer_items)
         discount = Decimal("0.00")
 
         if (
@@ -1054,14 +1123,14 @@ def checkout_view(request):
                 return redirect("checkout")
 
             checkout_data["groups"].append({
-                "producer_id": producer.id,
-                "address": address,
-                "date": date_value,
-                "discount_rate": float(request.user.bulk_discount_rate),
-                "items": [
+            "producer_id": producer.id,
+            "address": address,
+            "date": date_value,
+            "discount_rate": float(request.user.bulk_discount_rate),
+            "items":[
                     {
                         "name": item.product.name,
-                        "price": float(item.product.price),
+                        "price": float(item.product.get_effective_price()),
                         "quantity": item.quantity,
                     }
                     for item in producer_items
@@ -1212,3 +1281,81 @@ def producer_dashboard_view(request):
         return redirect("marketplace")
 
     return render(request, "producer_dashboard.html")
+
+# =========================================================================
+# TC-019 & TC-025 VIEWS
+# =========================================================================
+
+@login_required
+def producer_mark_surplus_view(request, pk):
+    if not request.user.is_producer:
+        return HttpResponseForbidden()
+
+    product = get_object_or_404(Product, pk=pk, producer=request.user)
+    was_surplus = product.is_surplus
+
+    if request.method == "POST":
+        form = SurplusForm(request.POST, instance=product)
+        if form.is_valid():
+            product = form.save()
+            # Send Notification if newly marked as surplus
+            if product.is_surplus and not was_surplus:
+                customers = User.objects.filter(is_customer=True)
+                for c in customers:
+                    Notification.objects.get_or_create(
+                        user=c, product=product,
+                        message=f"🚨 Last Minute Deal: {product.name} is {product.discount_percentage}% off! Save food waste now."
+                    )
+            messages.success(request, "Surplus deal updated successfully.")
+            return redirect("producer_products")
+    else:
+        form = SurplusForm(instance=product)
+    return render(request, "producer_mark_surplus.html", {"form": form, "product": product})
+
+
+def surplus_deals_view(request):
+    products = Product.objects.select_related("producer").filter(
+        is_surplus=True,
+        surplus_expiry__gt=timezone.now(),
+        stock__gt=0,
+    ).exclude(availability="unavailable")
+
+    unread_notifications_count = request.user.notifications.filter(is_read=False).count() if request.user.is_authenticated else 0
+
+    return render(request, "surplus_deals.html", {
+        "products": products,
+        "unread_notifications_count": unread_notifications_count
+    })
+
+
+@staff_member_required
+def admin_commission_report_view(request):
+    date_range = request.GET.get("range", "2_weeks")
+    end_date = timezone.now()
+
+    if date_range == "month":
+        start_date = end_date - timedelta(days=30)
+    elif date_range == "year":
+        start_date = end_date.replace(month=1, day=1, hour=0, minute=0, second=0)
+    elif date_range == "all":
+        start_date = end_date - timedelta(days=3650)
+    else:
+        start_date = end_date - timedelta(days=14)
+
+    orders = Order.objects.filter(status="delivered", updated_at__gte=start_date, updated_at__lte=end_date).order_by("-updated_at")
+    total_value = sum(o.total_amount for o in orders)
+    total_commission = sum(o.commission_amount for o in orders)
+    total_payout = sum(o.producer_amount for o in orders)
+
+    if request.GET.get("download") == "csv":
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="commission_{start_date.date()}_to_{end_date.date()}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(["Order ID", "Date", "Customer", "Producer", "Total Value", "Commission (5%)", "Producer Payment (95%)", "Status"])
+        for o in orders:
+            writer.writerow([o.id, o.updated_at.strftime("%Y-%m-%d"), o.customer.username, o.producer.business_name or o.producer.username, o.total_amount, o.commission_amount, o.producer_amount, o.get_status_display()])
+        return response
+
+    return render(request, "admin_commission_report.html", {
+        "orders": orders, "total_value": total_value, "total_commission": total_commission, "total_payout": total_payout, "date_range": date_range
+    })

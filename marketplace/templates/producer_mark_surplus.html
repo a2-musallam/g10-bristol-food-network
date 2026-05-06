@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mark Surplus</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light p-5">
+<div class="container" style="max-width: 600px;">
+    <h2>🚨 Mark as Surplus: {{ product.name }}</h2>
+    <div class="card shadow p-4 mt-3">
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="btn btn-danger w-100 mt-3">Save Surplus Deal</button>
+        </form>
+        <a href="{% url 'producer_products' %}" class="btn btn-secondary w-100 mt-2">Cancel</a>
+    </div>
+</div>
+</body>
+</html>
